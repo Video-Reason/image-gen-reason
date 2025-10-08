@@ -1,0 +1,18 @@
+[
+  {
+    "maze_type": "irregular",
+    "maze_index": "0000",
+    "prompt": "Show the solution path through this maze from start to finish.",
+    "error": "Generation failed: 400: failed to moderate image",
+    "success": false,
+    "timestamp": "2025-10-08T19:28:11.805219"
+  },
+  {
+    "maze_type": "knowwhat",
+    "maze_index": "0001",
+    "prompt": "Show how to solve this maze by finding the path from start to goal.",
+    "error": "Generation failed: 400: failed to moderate image",
+    "success": false,
+    "timestamp": "2025-10-08T19:28:44.649544"
+  }
+]
