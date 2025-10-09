@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from vmevalkit.api_clients.luma_client import LumaDreamMachine
-from vmevalkit.utils.local_image_server import ImageServer
+from vmevalkit.utils.s3_uploader import S3ImageUploader
 
 def test_maze_reasoning():
     """Test Luma's ability to generate maze-solving videos."""
@@ -28,9 +28,8 @@ def test_maze_reasoning():
         verbose=True
     )
     
-    # Start local image server for maze images
-    server = ImageServer(port=8080)
-    server_url = server.start()
+    # Initialize S3 uploader
+    uploader = S3ImageUploader()
     
     # Test cases: maze type, index, and prompts to try
     test_cases = [
@@ -65,8 +64,13 @@ def test_maze_reasoning():
             image_filename = f"{maze_type}_{index}_first.png"
             image_path = f"data/generated_mazes/{image_filename}"
             
-            # Get URL from local server
-            image_url = server.get_url(image_path)
+            # Upload image to S3
+            print(f"\nUploading {image_filename} to S3...")
+            image_url = uploader.upload(image_path)
+            
+            if not image_url:
+                print(f"Failed to upload {image_filename}, skipping...")
+                continue
             
             print(f"\n{'='*60}")
             print(f"Testing {maze_type} maze {index}")
@@ -128,8 +132,9 @@ def test_maze_reasoning():
             time.sleep(15)
     
     finally:
-        # Stop server
-        server.stop()
+        # Clean up S3 files
+        print("\nCleaning up S3 files...")
+        uploader.cleanup()
         
         # Save results
         results_file = "outputs/luma_maze_results.json"

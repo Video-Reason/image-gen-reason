@@ -1,0 +1,101 @@
+"""
+S3 uploader for temporary public access to maze images.
+"""
+
+import os
+import boto3
+from pathlib import Path
+from typing import Optional
+from datetime import datetime
+import hashlib
+
+class S3ImageUploader:
+    """Upload images to S3 with public read access."""
+    
+    def __init__(self, bucket_name: Optional[str] = None):
+        """
+        Initialize S3 uploader.
+        
+        Args:
+            bucket_name: S3 bucket name (defaults to S3_BUCKET env var)
+        """
+        self.bucket_name = bucket_name or os.getenv("S3_BUCKET", "vmevalkit")
+        self.region = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+        
+        # Initialize S3 client
+        self.s3_client = boto3.client(
+            's3',
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
+            region_name=self.region
+        )
+        
+        # Test prefix for uploaded images
+        self.prefix = f"temp_maze_tests/{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    def upload(self, image_path: str) -> Optional[str]:
+        """
+        Upload an image to S3 and return a presigned URL for temporary public access.
+        
+        Args:
+            image_path: Path to the image file
+            
+        Returns:
+            Presigned URL for temporary access (valid for 1 hour)
+        """
+        path = Path(image_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Image not found: {image_path}")
+        
+        # Generate unique key
+        file_hash = hashlib.md5(path.name.encode()).hexdigest()[:8]
+        key = f"{self.prefix}/{file_hash}_{path.name}"
+        
+        try:
+            # Upload without ACL
+            self.s3_client.upload_file(
+                str(path),
+                self.bucket_name,
+                key,
+                ExtraArgs={
+                    'ContentType': 'image/png'
+                }
+            )
+            
+            # Generate presigned URL (valid for 1 hour)
+            url = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': self.bucket_name,
+                    'Key': key
+                },
+                ExpiresIn=3600  # 1 hour
+            )
+            
+            print(f"[S3] Uploaded {path.name} with presigned URL")
+            return url
+            
+        except Exception as e:
+            print(f"[S3] Failed to upload {path.name}: {e}")
+            return None
+    
+    def cleanup(self):
+        """Delete all temporary files uploaded in this session."""
+        try:
+            # List objects with our prefix
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket_name,
+                Prefix=self.prefix
+            )
+            
+            if 'Contents' in response:
+                # Delete all objects
+                objects = [{'Key': obj['Key']} for obj in response['Contents']]
+                self.s3_client.delete_objects(
+                    Bucket=self.bucket_name,
+                    Delete={'Objects': objects}
+                )
+                print(f"[S3] Cleaned up {len(objects)} temporary files")
+        except Exception as e:
+            print(f"[S3] Cleanup failed: {e}")
