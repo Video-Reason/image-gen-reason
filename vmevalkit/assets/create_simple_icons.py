@@ -27,44 +27,77 @@ def create_simple_green_dot(size=64):
 
 
 def create_simple_flag(size=64):
-    """Create a simple red flag."""
+    """Create a simple red flag - improved for better visibility."""
     fig, ax = plt.subplots(figsize=(1, 1), dpi=size)
     ax.set_xlim(0, 1) 
     ax.set_ylim(0, 1)
     ax.axis('off')
     fig.patch.set_alpha(0)  # Transparent background
     
-    # Simple brown pole
-    pole = patches.Rectangle((0.15, 0.1), 0.08, 0.8, 
-                           facecolor='#a3723b', edgecolor='none')  # Brown pole
+    # Thicker, darker pole for better visibility
+    pole = patches.Rectangle((0.12, 0.05), 0.1, 0.9, 
+                           facecolor='#4a5568', edgecolor='none')  # Dark gray pole
     ax.add_patch(pole)
     
-    # Simple red triangular flag
-    flag_points = np.array([[0.23, 0.75], [0.75, 0.6], [0.23, 0.45]])
-    flag = patches.Polygon(flag_points, 
-                         facecolor='#ef4444', edgecolor='none')  # Simple red
+    # Larger rectangular flag with better proportions
+    flag = patches.Rectangle((0.22, 0.55), 0.55, 0.3, 
+                           facecolor='#dc2626', edgecolor='none')  # Bright red
     ax.add_patch(flag)
+    
+    # Add a white border to make it pop
+    flag_border = patches.Rectangle((0.22, 0.55), 0.55, 0.3, 
+                                  facecolor='none', edgecolor='white', linewidth=2)
+    ax.add_patch(flag_border)
+    
+    # Add a small wavy effect to make it more flag-like
+    wave_points = np.array([[0.77, 0.85], [0.82, 0.82], [0.77, 0.79], 
+                           [0.82, 0.76], [0.77, 0.73], [0.82, 0.70], 
+                           [0.77, 0.67], [0.82, 0.64], [0.77, 0.61], 
+                           [0.82, 0.58], [0.77, 0.55]])
+    for i in range(len(wave_points)-1):
+        ax.plot([wave_points[i][0], wave_points[i+1][0]], 
+               [wave_points[i][1], wave_points[i+1][1]], 
+               color='#dc2626', linewidth=3)
     
     return fig
 
 
 def create_simple_trophy(size=64):
-    """Create a simple golden trophy."""
+    """Create a simple golden trophy - improved design."""
     fig, ax = plt.subplots(figsize=(1, 1), dpi=size)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1) 
     ax.axis('off')
     fig.patch.set_alpha(0)  # Transparent background
     
-    # Simple trophy base
-    base = patches.Rectangle((0.35, 0.1), 0.3, 0.15, 
-                           facecolor='#f59e0b', edgecolor='none')  # Golden
+    # Trophy base - wider and more stable looking
+    base = patches.Rectangle((0.25, 0.05), 0.5, 0.12, 
+                           facecolor='#d97706', edgecolor='#92400e', linewidth=2)
     ax.add_patch(base)
     
-    # Simple trophy cup
-    cup = patches.Rectangle((0.3, 0.25), 0.4, 0.4, 
-                          facecolor='#f59e0b', edgecolor='none')  # Golden
-    ax.add_patch(cup)
+    # Trophy stem
+    stem = patches.Rectangle((0.45, 0.17), 0.1, 0.08, 
+                           facecolor='#d97706', edgecolor='none')
+    ax.add_patch(stem)
+    
+    # Trophy bowl - more bowl-like shape using FancyBboxPatch
+    bowl = patches.FancyBboxPatch((0.3, 0.25), 0.4, 0.45, 
+                                boxstyle="round,pad=0.05",
+                                facecolor='#fbbf24', edgecolor='#d97706', linewidth=2)
+    ax.add_patch(bowl)
+    
+    # Add simple handles
+    left_handle = patches.Arc((0.2, 0.45), 0.25, 0.35, angle=0, theta1=270, theta2=90, 
+                            color='#d97706', linewidth=4)
+    right_handle = patches.Arc((0.8, 0.45), 0.25, 0.35, angle=0, theta1=90, theta2=270,
+                             color='#d97706', linewidth=4)
+    ax.add_patch(left_handle)
+    ax.add_patch(right_handle)
+    
+    # Add a shine/highlight on the bowl
+    highlight = patches.Ellipse((0.42, 0.55), 0.15, 0.25, 
+                              facecolor='#fef3c7', alpha=0.7)
+    ax.add_patch(highlight)
     
     return fig
 

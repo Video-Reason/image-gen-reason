@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
 import httpx
+from PIL import Image
+import io
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -141,7 +143,7 @@ class VeoService:
         self,
         project_id: Optional[str] = None,
         location: str = "us-central1",
-        model_id: str = "veo-3.0-generate-001",
+        model_id: str = "veo-3.0-generate-preview",
         http_timeout_s: float = 600.0,
     ):
         # Accept multiple common env var names for GCP project and location
@@ -215,7 +217,11 @@ class VeoService:
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
         instance: Dict[str, Any] = {"prompt": prompt}
-        image_obj = self._build_image_object(image_path=image_path, image_gcs_uri=image_gcs_uri)
+        image_obj = self._build_image_object(
+            image_path=image_path, 
+            image_gcs_uri=image_gcs_uri,
+            aspect_ratio=aspect_ratio
+        )
         if image_obj:
             instance["image"] = image_obj
 
@@ -318,11 +324,61 @@ class VeoService:
         if not (1 <= sample_count <= 4):
             raise ValueError("sample_count must be between 1 and 4")
 
+    def _pad_image_to_aspect_ratio(self, image: Image.Image, target_aspect_ratio: str) -> Image.Image:
+        """
+        Pad an image with white margins to match the target aspect ratio.
+        
+        Args:
+            image: PIL Image to pad
+            target_aspect_ratio: "16:9" or "9:16"
+            
+        Returns:
+            PIL Image with white padding to match target aspect ratio
+        """
+        # Parse target aspect ratio
+        if target_aspect_ratio == "16:9":
+            target_ratio = 16 / 9
+        elif target_aspect_ratio == "9:16":
+            target_ratio = 9 / 16
+        else:
+            raise ValueError(f"Unsupported aspect ratio: {target_aspect_ratio}")
+        
+        width, height = image.size
+        current_ratio = width / height
+        
+        # If already correct ratio, return as-is
+        if abs(current_ratio - target_ratio) < 0.01:
+            return image
+        
+        # Calculate target dimensions
+        if current_ratio > target_ratio:
+            # Image is wider than target - add height padding
+            new_width = width
+            new_height = int(width / target_ratio)
+        else:
+            # Image is taller than target - add width padding
+            new_height = height
+            new_width = int(height * target_ratio)
+        
+        # Create white canvas with target dimensions
+        padded = Image.new("RGB", (new_width, new_height), color="white")
+        
+        # Calculate position to center the original image
+        x_offset = (new_width - width) // 2
+        y_offset = (new_height - height) // 2
+        
+        # Paste original image onto white canvas
+        padded.paste(image, (x_offset, y_offset))
+        
+        logger.info(f"Padded image from {width}×{height} to {new_width}×{new_height} for {target_aspect_ratio} ratio")
+        return padded
+
     def _build_image_object(
         self,
         *,
         image_path: Optional[str],
         image_gcs_uri: Optional[str],
+        aspect_ratio: str = "16:9",
     ) -> Optional[Dict[str, Any]]:
         """Create the 'image' object for an instance."""
         if image_path and image_gcs_uri:
@@ -332,12 +388,23 @@ class VeoService:
             p = Path(image_path)
             if not p.exists():
                 raise FileNotFoundError(f"Image not found: {image_path}")
-            data = p.read_bytes()
-            # Guess mime
-            mime = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+            
+            # Load image and pad to target aspect ratio
+            image = Image.open(p)
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            
+            # Pad image to match video aspect ratio (prevents cropping)
+            padded_image = self._pad_image_to_aspect_ratio(image, aspect_ratio)
+            
+            # Convert to bytes
+            buffer = io.BytesIO()
+            padded_image.save(buffer, format="PNG")
+            data = buffer.getvalue()
+            
             return {
                 "bytesBase64Encoded": base64.b64encode(data).decode("utf-8"),
-                "mimeType": mime,
+                "mimeType": "image/png",  # Always PNG after processing
             }
 
         if image_gcs_uri:
@@ -469,9 +536,9 @@ if __name__ == "__main__":
     parser.add_argument("--no-download", dest="download", action="store_false")
     parser.set_defaults(download=True)
 
-    parser.add_argument("--model", default="veo-3.0-generate-001",
-                        choices=["veo-3.0-generate-001", "veo-3.0-fast-generate-001"],
-                        help="Veo 3 model variant.")
+    parser.add_argument("--model", default="veo-3.0-generate-preview",
+                        choices=["veo-2.0-generate-001", "veo-3.0-generate-preview", "veo-3.0-fast-generate-preview"],
+                        help="Veo model variant.")
 
     parser.add_argument("--out", default="./outputs/veo_output.mp4", help="Where to save video bytes if available.")
     args = parser.parse_args()
