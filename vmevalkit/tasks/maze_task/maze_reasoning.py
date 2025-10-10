@@ -135,64 +135,53 @@ class KnowWhatTaskGenerator:
             "Start at the blue star and finish at the circle marker.",
         ]
     
-    def knowwhat_to_lattice_maze(self, knowwhat_maze: np.ndarray) -> TargetedLatticeMaze:
-        """Convert KnowWhat maze to maze-dataset format."""
-        height, width = knowwhat_maze.shape
-        
-        start_pos = None
-        end_pos = None
-        
-        for i in range(height):
-            for j in range(width):
-                if knowwhat_maze[i, j] == POS:  
-                    start_pos = (i, j)
-                elif knowwhat_maze[i, j] == END:  
-                    end_pos = (i, j)
-        
-        if start_pos is None or end_pos is None:
-            raise ValueError("Maze must have both start (POS=2) and end (END=3) positions")
-        
-        connection_list = np.zeros((2, height, width), dtype=bool)
-        
-        for i in range(height):
-            for j in range(width):
-                if knowwhat_maze[i, j] > 0:  
-                    if i < height - 1 and knowwhat_maze[i + 1, j] > 0:
-                        connection_list[0, i, j] = True
-                    if j < width - 1 and knowwhat_maze[i, j + 1] > 0:
-                        connection_list[1, i, j] = True
-        
-        targeted_maze = TargetedLatticeMaze(
-            connection_list=connection_list,
-            start_pos=start_pos,
-            end_pos=end_pos
-        )
-        
-        return targeted_maze
     
-    def render_knowwhat_maze(self, maze: TargetedLatticeMaze, save_path: Path, show_solution: bool):
-        """Render KnowWhat maze with markers only (no path)."""
-        maze_plot = MazePlot(maze, unit_length=20)
-        # Remove any automatic true path so no solution line is drawn
-        maze_plot.true_path = None
-        maze_plot.predicted_paths = []
+    def render_knowwhat_maze(self, maze: np.ndarray, save_path: Path, show_solution: bool):
+        """Render KnowWhat maze directly from numpy array with markers only."""
+        height, width = maze.shape
         fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
         
-        maze_plot.plot(fig_ax=(fig, ax), dpi=150, plain=True)
+        # Create the maze visualization
+        # White background
+        ax.set_xlim(-0.5, width - 0.5)
+        ax.set_ylim(height - 0.5, -0.5)  # Inverted y-axis
         
-        # Add simple markers
-        start_coord = maze_plot._rowcol_to_coord(maze.start_pos)
-        end_coord = maze_plot._rowcol_to_coord(maze.end_pos)
+        # Draw walls and paths
+        for i in range(height):
+            for j in range(width):
+                if maze[i, j] == WALL:  # Wall
+                    rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, 
+                                       facecolor='black', edgecolor='black')
+                    ax.add_patch(rect)
+                else:  # Path, start, or end
+                    rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, 
+                                       facecolor='white', edgecolor='gray', linewidth=0.5)
+                    ax.add_patch(rect)
+        
+        # Find start and end positions
+        start_pos = None
+        end_pos = None
+        for i in range(height):
+            for j in range(width):
+                if maze[i, j] == POS:
+                    start_pos = (j, i)  # Note: (x, y) for plotting
+                elif maze[i, j] == END:
+                    end_pos = (j, i)
         
         # Always show target circle at end (red for clarity)
-        ax.plot(end_coord[0], end_coord[1], 'o', color='red', markersize=20, markeredgecolor='white', markeredgewidth=2)
-
+        if end_pos:
+            ax.plot(end_pos[0], end_pos[1], 'o', color='red', markersize=20, 
+                   markeredgecolor='white', markeredgewidth=2, zorder=10)
+        
         # Current position marker (blue star): at start for first frame, at end for final frame
-        current = end_coord if show_solution else start_coord
-        ax.plot(current[0], current[1], '*', color='blue', markersize=20, markeredgecolor='white', markeredgewidth=2)
+        if start_pos and end_pos:
+            current = end_pos if show_solution else start_pos
+            ax.plot(current[0], current[1], '*', color='blue', markersize=25, 
+                   markeredgecolor='white', markeredgewidth=2, zorder=10)
         
         ax.set_aspect('equal')
         ax.axis('off')
+        ax.set_facecolor('white')
         fig.patch.set_facecolor('white')
         fig.tight_layout(pad=0.1)
         
@@ -201,15 +190,13 @@ class KnowWhatTaskGenerator:
     
     def generate_knowwhat_pair(self, maze: np.ndarray, shape: str, size: Tuple[int, int], pair_id: str) -> MazeTaskPair:
         """Generate a KnowWhat task pair."""
-        targeted_maze = self.knowwhat_to_lattice_maze(maze)
-        
         # Generate first image (puzzle)
         first_path = self.generated_mazes_dir / f"{pair_id}_first.png"
-        self.render_knowwhat_maze(targeted_maze, first_path, show_solution=False)
+        self.render_knowwhat_maze(maze, first_path, show_solution=False)
         
         # Generate final image (solution)
         final_path = self.generated_mazes_dir / f"{pair_id}_final.png"
-        self.render_knowwhat_maze(targeted_maze, final_path, show_solution=True)
+        self.render_knowwhat_maze(maze, final_path, show_solution=True)
         
         prompt = random.choice(self.prompts).format(shape=shape)
         
@@ -222,7 +209,7 @@ class KnowWhatTaskGenerator:
             first_image_path=str(first_path),
             final_image_path=str(final_path),
             task_category="KnowWhat",
-            maze_data={"maze_array": maze.tolist(), "generation_method": "knowwhat_algorithmic"},
+            maze_data={"maze_array": maze.tolist(), "generation_method": "knowwhat_pregenerated"},
             difficulty=self._determine_difficulty(size, shape),
             maze_size=size,
             start_pos=start_pos,
@@ -420,45 +407,55 @@ class IrregularTaskGenerator:
 
 
 def create_knowwhat_dataset(num_samples: int = 20) -> MazeDataset:
-    """Create KnowWhat dataset with simple star/circle markers."""
-    # Apply robustness patch for KnowWhat generation
-    try:
-        from .maze_patch import patch_knowwhat_generation
-        patch_knowwhat_generation()
-    except ImportError:
-        print("⚠️  Maze patch not available, using original generation")
-    
+    """Create KnowWhat dataset using pre-generated maze files."""
     generator = KnowWhatTaskGenerator()
     pairs = []
     
-    print(f"🧩 Generating {num_samples} KnowWhat algorithmic maze tasks...")
+    print(f"🧩 Loading {num_samples} KnowWhat algorithmic maze tasks from pre-generated files...")
     
-    for i in range(num_samples):
+    # Path to KnowWhat experiment mazes
+    knowwhat_data_dir = Path(__file__).parent.parent.parent.parent / "submodules" / "KnowWhat" / "data" / "experiment_mazes"
+    
+    # Collect all available maze files
+    available_mazes = []
+    for size_dir in knowwhat_data_dir.iterdir():
+        if size_dir.is_dir() and size_dir.name in ["5x5", "7x7"]:
+            size = tuple(map(int, size_dir.name.split('x')))
+            for shape_dir in size_dir.iterdir():
+                if shape_dir.is_dir() and shape_dir.name in SHAPES:
+                    shape = shape_dir.name
+                    for maze_file in shape_dir.glob("*.npy"):
+                        available_mazes.append((maze_file, shape, size))
+    
+    # Randomly sample from available mazes
+    if len(available_mazes) < num_samples:
+        print(f"⚠️  Only {len(available_mazes)} mazes available, using all of them")
+        selected_mazes = available_mazes
+    else:
+        selected_mazes = random.sample(available_mazes, num_samples)
+    
+    for i, (maze_file, shape, size) in enumerate(selected_mazes):
         try:
-            shape = random.choice(SHAPES)
-            size = random.choice([(5, 5), (7, 7), (9, 9)])
-            
-            # Generate single maze using KnowWhat
-            mazes = get_sample_mazes(size, shape, k=1)
-            maze = mazes[0]
+            # Load the pre-generated maze
+            maze = np.load(maze_file)
             
             pair_id = f"knowwhat_{i:04d}"
             pair = generator.generate_knowwhat_pair(maze, shape, size, pair_id)
             pairs.append(pair)
             
         except Exception as e:
-            print(f"Error generating KnowWhat maze {i}: {e}")
+            print(f"Error loading KnowWhat maze from {maze_file}: {e}")
             continue
     
     dataset = MazeDataset(
         name="knowwhat_tasks",
         description=f"KnowWhat algorithmic maze tasks with star/circle markers ({len(pairs)} pairs)",
         pairs=pairs,
-        metadata={"task_category": "KnowWhat", "marker_style": "star_circle"}
+        metadata={"task_category": "KnowWhat", "marker_style": "star_circle", "source": "pregenerated_experiment_mazes"}
     )
     
     dataset.save(generator.maze_tasks_dir / "knowwhat_tasks.json")
-    print(f"✓ Generated {len(pairs)} KnowWhat tasks")
+    print(f"✓ Loaded {len(pairs)} KnowWhat tasks from pre-generated files")
     return dataset
 
 
