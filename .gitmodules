@@ -16,3 +16,9 @@
 [submodule "submodules/DynamiCrafter"]
 	path = submodules/DynamiCrafter
 	url = https://github.com/Doubiiu/DynamiCrafter.git
+[submodule "submodules/python-chess"]
+	path = submodules/python-chess
+	url = https://github.com/niklasf/python-chess.git
+[submodule "submodules/RAVEN"]
+	path = submodules/RAVEN
+	url = https://github.com/WellyZhang/RAVEN.git
