@@ -84,6 +84,7 @@ Every dataset must follow this exact JSON structure:
       "first_image_path": "data/generated_{task_name}/{task_name}_0000_first.png",
       "final_image_path": "data/generated_{task_name}/{task_name}_0000_final.png", 
       "task_category": "TaskType",
+      "domain": "{task_name}",
       "{task_name}_data": {
         "generation_method": "description_of_method",
         // Task-specific metadata
@@ -109,6 +110,7 @@ Every dataset must follow this exact JSON structure:
    - `first_image_path`: Path to initial state image
    - `final_image_path`: Path to solution state image
    - `task_category`: Category name for the task type
+   - `domain`: One of `chess`, `maze`, `raven`, `rotation` (used for aggregation)
    - `{task_name}_data`: Task-specific metadata object
    - `difficulty`: Standardized difficulty level
    - `created_at`: ISO timestamp

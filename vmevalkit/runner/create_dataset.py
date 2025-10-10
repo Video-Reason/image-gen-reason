@@ -63,13 +63,22 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
     # Generate each domain's dataset
     all_pairs = []
     
+    def _ensure_domain_tag(pairs_list, domain_name):
+        """Add a 'domain' field to each task pair dict for robust aggregation."""
+        tagged = []
+        for pair in pairs_list:
+            item = dict(pair)
+            item['domain'] = domain_name
+            tagged.append(item)
+        return tagged
+    
     try:
         # 1. Chess Tasks - Strategic Reasoning
         print("♟️  Generating Chess Tasks...")
         from vmevalkit.tasks.chess_task import create_chess_dataset
         chess_dataset = create_chess_dataset(num_samples=allocation['chess'])
         chess_pairs = chess_dataset['pairs']
-        all_pairs.extend(chess_pairs)
+        all_pairs.extend(_ensure_domain_tag(chess_pairs, 'chess'))
         print(f"   ✅ Generated {len(chess_pairs)} chess task pairs\n")
         
     except Exception as e:
@@ -91,7 +100,9 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
             irregular_samples=irregular_count
         )
         maze_pairs = maze_dataset.pairs
-        all_pairs.extend([pair.__dict__ for pair in maze_pairs])  # Convert dataclass to dict
+        # Convert dataclass instances to dicts and tag domain
+        maze_dicts = [dict(pair.__dict__) for pair in maze_pairs]
+        all_pairs.extend(_ensure_domain_tag(maze_dicts, 'maze'))
         print(f"   ✅ Generated {len(maze_pairs)} maze task pairs\n")
         
     except Exception as e:
@@ -104,7 +115,7 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
         from vmevalkit.tasks.raven_task.raven_reasoning import create_dataset as create_raven_dataset
         raven_dataset = create_raven_dataset(num_samples=allocation['raven'])
         raven_pairs = raven_dataset['pairs']
-        all_pairs.extend(raven_pairs)
+        all_pairs.extend(_ensure_domain_tag(raven_pairs, 'raven'))
         print(f"   ✅ Generated {len(raven_pairs)} RAVEN task pairs\n")
         
     except Exception as e:
@@ -117,7 +128,7 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
         from vmevalkit.tasks.rotation_task.rotation_reasoning import create_dataset as create_rotation_dataset
         rotation_dataset = create_rotation_dataset(num_samples=allocation['rotation'])
         rotation_pairs = rotation_dataset['pairs']
-        all_pairs.extend(rotation_pairs)
+        all_pairs.extend(_ensure_domain_tag(rotation_pairs, 'rotation'))
         print(f"   ✅ Generated {len(rotation_pairs)} rotation task pairs\n")
         
     except Exception as e:
@@ -140,13 +151,14 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
             "actual_pairs": len(all_pairs),
             "allocation": allocation,
             "domains": {
-                "chess": {"count": len([p for p in all_pairs if p.get('task_category') == 'Chess']), 
+                # Use explicit domain tagging for robust counts
+                "chess": {"count": len([p for p in all_pairs if p.get('domain') == 'chess']), 
                          "description": "Strategic thinking and tactical pattern recognition"},
-                "maze": {"count": len([p for p in all_pairs if 'maze' in p.get('id', '').lower()]), 
+                "maze": {"count": len([p for p in all_pairs if p.get('domain') == 'maze']), 
                         "description": "Spatial reasoning and navigation planning"},
-                "raven": {"count": len([p for p in all_pairs if p.get('id', '').startswith('raven_')]), 
+                "raven": {"count": len([p for p in all_pairs if p.get('domain') == 'raven']), 
                          "description": "Abstract reasoning and pattern completion"},
-                "rotation": {"count": len([p for p in all_pairs if p.get('id', '').startswith('rotation_')]), 
+                "rotation": {"count": len([p for p in all_pairs if p.get('domain') == 'rotation']), 
                            "description": "3D mental rotation and spatial visualization"}
             }
         },
