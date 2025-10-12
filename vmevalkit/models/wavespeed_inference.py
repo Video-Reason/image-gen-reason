@@ -23,7 +23,8 @@ class WaveSpeedModel(str, Enum):
     """WaveSpeedAI model endpoints for I2V generation."""
     
     # Google Veo Models
-    VEO_3_1_I2V = "google/veo3.1/image-to-video"
+    VEO_3_1_I2V = "veo3.1/image-to-video"  # Veo 3.1 standard image-to-video endpoint
+    VEO_3_1_FAST_I2V = "veo3.1-fast/image-to-video"  # Veo 3.1 fast image-to-video endpoint
     
     # WAN 2.2 Models
     WAN_2_2_I2V_480P = "wan-2.2/i2v-480p"
@@ -178,9 +179,9 @@ class WaveSpeedService:
     ) -> str:
         """Submit I2V generation request."""
         # Build endpoint URL based on model type
-        if self.model == WaveSpeedModel.VEO_3_1_I2V:
-            # For Veo 3.1, use the specific model path
-            submit_url = f"{self.base_url}/api/v3/{self.model}"
+        if self.model in [WaveSpeedModel.VEO_3_1_I2V, WaveSpeedModel.VEO_3_1_FAST_I2V]:
+            # For Veo 3.1 models, use the Google prefix path
+            submit_url = f"{self.base_url}/api/v3/google/{self.model}"
         else:
             # For WAN models, use wavespeed-ai prefix
             submit_url = f"{self.base_url}/api/v3/wavespeed-ai/{self.model}"
@@ -191,8 +192,8 @@ class WaveSpeedService:
             "seed": seed
         }
         
-        # Add Veo 3.1 specific parameters if using that model
-        if self.model == WaveSpeedModel.VEO_3_1_I2V:
+        # Add Veo 3.1 specific parameters if using Veo models
+        if self.model in [WaveSpeedModel.VEO_3_1_I2V, WaveSpeedModel.VEO_3_1_FAST_I2V]:
             if aspect_ratio:
                 payload["aspect_ratio"] = aspect_ratio
             if duration:
