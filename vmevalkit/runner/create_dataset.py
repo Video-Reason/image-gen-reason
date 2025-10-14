@@ -31,7 +31,15 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Domain Registry: Scalable way to add new domains
-# Each entry contains configuration for dataset generation
+# ============================================================
+# TO ADD A NEW TASK: Simply add an entry here with:
+#   - emoji: Visual icon for the task
+#   - name: Display name
+#   - description: Brief task description
+#   - module: Path to the task module
+#   - create_function: Name of dataset creation function (usually 'create_dataset')
+#   - process_dataset: Lambda to extract pairs from dataset (usually: lambda dataset, num_samples: dataset['pairs'])
+# ============================================================
 DOMAIN_REGISTRY = {
     'chess': {
         'emoji': '♟️',
@@ -98,75 +106,69 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
     
     generated_pairs = []
     
-    try:
-        # Print generation message with emoji
-        print(f"{domain_config['emoji']} Generating {num_samples} {domain_config['name']} Tasks...")
+    # Print generation message with emoji
+    print(f"{domain_config['emoji']} Generating {num_samples} {domain_config['name']} Tasks...")
+    
+    # Dynamic import and function call
+    import importlib
+    module = importlib.import_module(domain_config['module'])
+    create_func = getattr(module, domain_config['create_function'])
+    
+    # Call the creation function
+    dataset = create_func(num_samples=num_samples)
+    
+    # Process the dataset to extract pairs
+    if domain_config['process_dataset']:
+        pairs = domain_config['process_dataset'](dataset, num_samples)
+    else:
+        pairs = dataset['pairs']  # Default assumption
+    
+    # Now write each pair directly to its folder
+    base_dir = Path(__file__).parent.parent.parent
+    
+    for idx, pair in enumerate(pairs):
+        # Create unique ID
+        pair_id = pair.get("id") or f"{domain_name}_{idx:04d}"
+        pair['id'] = pair_id
+        pair['domain'] = domain_name
         
-        # Dynamic import and function call
-        import importlib
-        module = importlib.import_module(domain_config['module'])
-        create_func = getattr(module, domain_config['create_function'])
+        # Create question directory
+        q_dir = domain_dir / pair_id
+        q_dir.mkdir(parents=True, exist_ok=True)
         
-        # Call the creation function
-        dataset = create_func(num_samples=num_samples)
+        # Copy images with standardized names
+        first_rel = pair.get("first_image_path")
+        final_rel = pair.get("final_image_path")
         
-        # Process the dataset to extract pairs
-        if domain_config['process_dataset']:
-            pairs = domain_config['process_dataset'](dataset, num_samples)
-        else:
-            pairs = dataset['pairs']  # Default assumption
+        if first_rel:
+            src_first = base_dir / first_rel
+            dst_first = q_dir / "first_frame.png"
+            if src_first.exists():
+                shutil.copyfile(src_first, dst_first)
+                # Update path to relative from questions folder
+                pair['first_image_path'] = str(Path(domain_name + "_task") / pair_id / "first_frame.png")
+                
+        if final_rel:
+            src_final = base_dir / final_rel
+            dst_final = q_dir / "final_frame.png"
+            if src_final.exists():
+                shutil.copyfile(src_final, dst_final)
+                # Update path to relative from questions folder
+                pair['final_image_path'] = str(Path(domain_name + "_task") / pair_id / "final_frame.png")
         
-        # Now write each pair directly to its folder
-        base_dir = Path(__file__).parent.parent.parent
+        # Write prompt
+        prompt_text = pair.get("prompt", "")
+        (q_dir / "prompt.txt").write_text(prompt_text)
         
-        for idx, pair in enumerate(pairs):
-            # Create unique ID
-            pair_id = pair.get("id") or f"{domain_name}_{idx:04d}"
-            pair['id'] = pair_id
-            pair['domain'] = domain_name
-            
-            # Create question directory
-            q_dir = domain_dir / pair_id
-            q_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Copy images with standardized names
-            first_rel = pair.get("first_image_path")
-            final_rel = pair.get("final_image_path")
-            
-            if first_rel:
-                src_first = base_dir / first_rel
-                dst_first = q_dir / "first_frame.png"
-                if src_first.exists():
-                    shutil.copyfile(src_first, dst_first)
-                    # Update path to relative from questions folder
-                    pair['first_image_path'] = str(Path(domain_name + "_task") / pair_id / "first_frame.png")
-                    
-            if final_rel:
-                src_final = base_dir / final_rel
-                dst_final = q_dir / "final_frame.png"
-                if src_final.exists():
-                    shutil.copyfile(src_final, dst_final)
-                    # Update path to relative from questions folder
-                    pair['final_image_path'] = str(Path(domain_name + "_task") / pair_id / "final_frame.png")
-            
-            # Write prompt
-            prompt_text = pair.get("prompt", "")
-            (q_dir / "prompt.txt").write_text(prompt_text)
-            
-            # Write metadata with creation timestamp
-            metadata_path = q_dir / "question_metadata.json"
-            pair['created_at'] = datetime.now().isoformat() + 'Z'
-            with open(metadata_path, 'w') as f:
-                json.dump(pair, f, indent=2, default=str)
-            
-            generated_pairs.append(pair)
+        # Write metadata with creation timestamp
+        metadata_path = q_dir / "question_metadata.json"
+        pair['created_at'] = datetime.now().isoformat() + 'Z'
+        with open(metadata_path, 'w') as f:
+            json.dump(pair, f, indent=2, default=str)
         
-        print(f"   ✅ Generated {len(generated_pairs)} {domain_name} task pairs in {domain_dir}\n")
-        
-    except Exception as e:
-        print(f"   ❌ {domain_name.title()} generation failed: {e}\n")
-        import traceback
-        traceback.print_exc()
+        generated_pairs.append(pair)
+    
+    print(f"   ✅ Generated {len(generated_pairs)} {domain_name} task pairs in {domain_dir}\n")
     
     return generated_pairs
 
@@ -299,14 +301,11 @@ def read_dataset_from_folders(base_dir: Path = None) -> Dict[str, Any]:
             for q_dir in domain_dir.iterdir():
                 metadata_path = q_dir / "question_metadata.json"
                 if metadata_path.exists():
-                    try:
-                        with open(metadata_path, 'r') as f:
-                            meta = json.load(f)
-                            if 'created_at' in meta:
-                                creation_timestamp = meta['created_at']
-                                break
-                    except:
-                        pass
+                    with open(metadata_path, 'r') as f:
+                        meta = json.load(f)
+                        if 'created_at' in meta:
+                            creation_timestamp = meta['created_at']
+                            break
     
     # If no timestamp found, use file modification time or current time
     if not creation_timestamp:
