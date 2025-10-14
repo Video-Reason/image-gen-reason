@@ -1,9 +1,7 @@
 """
 Clean Maze Reasoning Tasks for Video Model Evaluation.
 
-Two types of maze tasks:
-1. KnowWhat Tasks: Algorithmic patterns with simple star/circle markers
-2. Irregular Tasks: Professional mazes with green dot/flag icons
+Professional mazes with green dot/flag icons
 
 New Data Structure: prompt + first_image + final_image
 """
@@ -17,15 +15,8 @@ from typing import List, Dict, Any, Optional, Tuple, Union
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
-# Import from KnowWhat submodule
-import sys
-sys.path.append(str(Path(__file__).parent.parent.parent.parent / "submodules" / "KnowWhat"))
-from core.maze_generator import (
-    SHAPES, get_sample_mazes, init_random_start_end,
-    WALL, PATH, POS, END
-)
-
 # Import from maze-dataset submodule
+import sys
 sys.path.append(str(Path(__file__).parent.parent.parent.parent / "submodules" / "maze-dataset"))
 from maze_dataset.maze.lattice_maze import LatticeMaze, TargetedLatticeMaze, SolvedMaze
 from maze_dataset.plotting import MazePlot
@@ -50,14 +41,13 @@ class MazeTaskPair:
     prompt: str                    # What to ask the video model to do
     first_image_path: str         # The puzzle image
     final_image_path: str         # The solution image
-    task_category: str            # "KnowWhat" or "Irregular"
+    task_category: str            # "Maze"
     maze_data: Dict[str, Any] = None  # Metadata
     difficulty: str = ""          # "easy", "medium", "hard"
     maze_size: Tuple[int, int] = (0, 0)
     start_pos: Tuple[int, int] = (0, 0)
     end_pos: Tuple[int, int] = (0, 0)
     solution_length: Optional[int] = None
-    shape_type: str = ""          # For KnowWhat tasks only
     created_at: str = ""
     
     def __post_init__(self):
@@ -98,139 +88,28 @@ class MazeDataset:
         with open(filepath, 'r') as f:
             data = json.load(f)
         
-        pairs = [MazeTaskPair(**pair_data) for pair_data in data['pairs']]
-        data['pairs'] = pairs
+        # Convert dictionaries back to MazeTaskPair objects
+        pairs = []
+        for pair_data in data['pairs']:
+            pairs.append(MazeTaskPair(**pair_data))
         
+        data['pairs'] = pairs
         return cls(**data)
     
     def filter_by_category(self, category: str) -> 'MazeDataset':
-        """Filter by task category (KnowWhat or Irregular)."""
-        filtered_pairs = [pair for pair in self.pairs if pair.task_category == category]
+        """Filter by task category."""
+        filtered_pairs = [p for p in self.pairs if p.task_category == category]
         return MazeDataset(
             name=f"{self.name}_filtered_{category}",
-            description=f"Filtered version of {self.name} with only {category} tasks",
+            description=f"Filtered dataset: {category} tasks only",
             pairs=filtered_pairs,
-            metadata={**self.metadata, "filtered_by": category}
+            metadata={**self.metadata, "filter": category}
         )
 
 
-class KnowWhatTaskGenerator:
+class MazeTaskGenerator:
     """
-    Generator for KnowWhat algorithmic maze tasks.
-    Uses simple star/circle markers, focuses on geometric patterns.
-    """
-    
-    def __init__(self, data_root: str = "data/questions"):
-        self.data_root = Path(data_root)
-        # Don't create intermediate folders anymore
-        import tempfile
-        self.temp_dir = tempfile.mkdtemp()
-        
-        self.prompts = [
-            "Navigate the blue star through white corridors (avoiding black walls) from its starting position to reach the red circle target.",
-            "In this {shape}-pattern maze, guide the blue star through the white paths (black areas are walls) to reach the red circle.",
-            "Move the blue star through white corridors to the red circle in this {shape}-shaped maze (black cells are walls).",
-            "Guide the blue star from its start position to the red circle target. White cells are paths, black cells are walls.",
-        ]
-    
-    
-    def render_knowwhat_maze(self, maze: np.ndarray, save_path: Path, show_solution: bool):
-        """Render KnowWhat maze directly from numpy array with markers only."""
-        height, width = maze.shape
-        fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
-        
-        # Create the maze visualization
-        # White background
-        ax.set_xlim(-0.5, width - 0.5)
-        ax.set_ylim(height - 0.5, -0.5)  # Inverted y-axis
-        
-        # Draw walls and paths
-        for i in range(height):
-            for j in range(width):
-                if maze[i, j] == WALL:  # Wall
-                    rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, 
-                                       facecolor='black', edgecolor='black')
-                    ax.add_patch(rect)
-                else:  # Path, start, or end
-                    rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, 
-                                       facecolor='white', edgecolor='gray', linewidth=0.5)
-                    ax.add_patch(rect)
-        
-        # Find start and end positions
-        start_pos = None
-        end_pos = None
-        for i in range(height):
-            for j in range(width):
-                if maze[i, j] == POS:
-                    start_pos = (j, i)  # Note: (x, y) for plotting
-                elif maze[i, j] == END:
-                    end_pos = (j, i)
-        
-        # Always show target circle at end (red for clarity)
-        if end_pos:
-            ax.plot(end_pos[0], end_pos[1], 'o', color='red', markersize=20, 
-                   markeredgecolor='white', markeredgewidth=2, zorder=10)
-        
-        # Current position marker (blue star): at start for first frame, at end for final frame
-        if start_pos and end_pos:
-            current = end_pos if show_solution else start_pos
-            ax.plot(current[0], current[1], '*', color='blue', markersize=25, 
-                   markeredgecolor='white', markeredgewidth=2, zorder=10)
-        
-        ax.set_aspect('equal')
-        ax.axis('off')
-        ax.set_facecolor('white')
-        fig.patch.set_facecolor('white')
-        fig.tight_layout(pad=0.1)
-        
-        fig.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white')
-        plt.close(fig)
-    
-    def generate_knowwhat_pair(self, maze: np.ndarray, shape: str, size: Tuple[int, int], pair_id: str) -> MazeTaskPair:
-        """Generate a KnowWhat task pair."""
-        # Generate first image (puzzle) in temp directory
-        first_path = Path(self.temp_dir) / f"{pair_id}_first.png"
-        self.render_knowwhat_maze(maze, first_path, show_solution=False)
-        
-        # Generate final image (solution) in temp directory
-        final_path = Path(self.temp_dir) / f"{pair_id}_final.png"
-        self.render_knowwhat_maze(maze, final_path, show_solution=True)
-        
-        prompt = random.choice(self.prompts).format(shape=shape)
-        
-        start_pos = tuple(map(int, np.argwhere(maze == POS)[0]))
-        end_pos = tuple(map(int, np.argwhere(maze == END)[0]))
-        
-        return MazeTaskPair(
-            id=pair_id,
-            prompt=prompt,
-            first_image_path=str(first_path),
-            final_image_path=str(final_path),
-            task_category="KnowWhat",
-            maze_data={"maze_array": maze.tolist(), "generation_method": "knowwhat_pregenerated"},
-            difficulty=self._determine_difficulty(size, shape),
-            maze_size=size,
-            start_pos=start_pos,
-            end_pos=end_pos,
-            shape_type=shape
-        )
-    
-    def _determine_difficulty(self, size: Tuple[int, int], shape: str) -> str:
-        """Determine difficulty for KnowWhat tasks."""
-        size_factor = max(size)
-        shape_complexity = {"square": 1, "cross": 2, "triangle": 2, "spiral": 3, "C": 3, "U": 3, "Z": 4, "N": 4}.get(shape, 2)
-        
-        if size_factor <= 5 and shape_complexity <= 2:
-            return "easy"
-        elif size_factor <= 7 and shape_complexity <= 3:
-            return "medium"
-        else:
-            return "hard"
-
-
-class IrregularTaskGenerator:
-    """
-    Generator for Irregular maze tasks using our own implementation of 
+    Generator for maze tasks using our own implementation of 
     a professional rendering approach (no external dependencies).
     """
     
@@ -320,8 +199,8 @@ class IrregularTaskGenerator:
         
         return solved_maze
     
-    def render_irregular_maze(self, solved_maze: SolvedMaze, save_path: Path, show_solution: bool):
-        """Render Irregular maze showing markers only (no path)."""
+    def render_maze(self, solved_maze: SolvedMaze, save_path: Path, show_solution: bool):
+        """Render maze showing markers only (no path)."""
         # Use their exact figure parameters
         fig_size_pixel = (832, 480)
         dpi = 100
@@ -357,17 +236,17 @@ class IrregularTaskGenerator:
         fig.savefig(save_path, dpi=dpi, bbox_inches='tight', facecolor='white')
         plt.close(fig)
     
-    def generate_irregular_pair(self, grid_n: int, pair_id: str) -> MazeTaskPair:
-        """Generate an Irregular task pair using our implementation."""
+    def generate_maze_pair(self, grid_n: int, pair_id: str) -> MazeTaskPair:
+        """Generate a maze task pair using our implementation."""
         solved_maze = self.generate_solved_maze(grid_n)
         
         # Generate first image (puzzle) in temp directory
         first_path = Path(self.temp_dir) / f"{pair_id}_first.png"
-        self.render_irregular_maze(solved_maze, first_path, show_solution=False)
+        self.render_maze(solved_maze, first_path, show_solution=False)
         
         # Generate final image (solution) in temp directory
         final_path = Path(self.temp_dir) / f"{pair_id}_final.png"
-        self.render_irregular_maze(solved_maze, final_path, show_solution=True)
+        self.render_maze(solved_maze, final_path, show_solution=True)
         
         prompt = random.choice(self.prompts)
         
@@ -376,7 +255,7 @@ class IrregularTaskGenerator:
             prompt=prompt,
             first_image_path=str(first_path),
             final_image_path=str(final_path),
-            task_category="Irregular",
+            task_category="Maze",
             maze_data={
                 "generation_method": "kruskal_algorithm",
                 "solution_length": len(solved_maze.solution)
@@ -389,7 +268,7 @@ class IrregularTaskGenerator:
         )
     
     def _determine_difficulty(self, grid_n: int) -> str:
-        """Determine difficulty for Irregular tasks."""
+        """Determine difficulty for maze tasks."""
         if grid_n <= 4:
             return "easy"
         elif grid_n <= 6:
@@ -402,66 +281,22 @@ class IrregularTaskGenerator:
         return 10000  # Conservative estimate - can generate many more
 
 
-def create_knowwhat_dataset(num_samples: int = 20) -> MazeDataset:
-    """Create KnowWhat dataset using pre-generated maze files."""
-    generator = KnowWhatTaskGenerator()
-    pairs = []
-    
-    print(f"🧩 Loading {num_samples} Simplified KnowWhat maze tasks (5x5 grids only) from pre-generated files...")
-    
-    # Path to KnowWhat experiment mazes
-    knowwhat_data_dir = Path(__file__).parent.parent.parent.parent / "submodules" / "KnowWhat" / "data" / "experiment_mazes"
-    
-    # Collect all available maze files (SIMPLIFIED: only 5x5 grids)
-    available_mazes = []
-    for size_dir in knowwhat_data_dir.iterdir():
-        if size_dir.is_dir() and size_dir.name in ["5x5"]:
-            size = tuple(map(int, size_dir.name.split('x')))
-            for shape_dir in size_dir.iterdir():
-                if shape_dir.is_dir() and shape_dir.name in SHAPES:
-                    shape = shape_dir.name
-                    for maze_file in shape_dir.glob("*.npy"):
-                        available_mazes.append((maze_file, shape, size))
-    
-    # Randomly sample from available mazes
-    if len(available_mazes) < num_samples:
-        print(f"⚠️  Only {len(available_mazes)} mazes available, using all of them")
-        selected_mazes = available_mazes
-    else:
-        selected_mazes = random.sample(available_mazes, num_samples)
-    
-    for i, (maze_file, shape, size) in enumerate(selected_mazes):
-        try:
-            # Load the pre-generated maze
-            maze = np.load(maze_file)
-            
-            pair_id = f"knowwhat_{i:04d}"
-            pair = generator.generate_knowwhat_pair(maze, shape, size, pair_id)
-            pairs.append(pair)
-            
-        except Exception as e:
-            print(f"Error loading KnowWhat maze from {maze_file}: {e}")
-            continue
-    
-    dataset = MazeDataset(
-        name="knowwhat_tasks",
-        description=f"Simplified KnowWhat maze tasks (5x5 grids only) with star/circle markers ({len(pairs)} pairs)",
-        pairs=pairs,
-        metadata={"task_category": "KnowWhat", "marker_style": "star_circle", "source": "pregenerated_experiment_mazes", "grid_size": "5x5_only"}
-    )
-    
-    # Don't save to intermediate folder anymore
-    print(f"✓ Loaded {len(pairs)} KnowWhat tasks from pre-generated files")
-    return dataset
+# Removed create_maze_dataset_direct - merged into create_dataset below
 
 
-def create_irregular_dataset(num_samples: int = 20) -> MazeDataset:
-    """Create Irregular dataset using our own implementation."""
-    generator = IrregularTaskGenerator()
+def create_dataset(num_samples: int = 30) -> Dict[str, Any]:
+    """Create maze dataset - main entry point matching other domains."""
+    print(f"🧩 Creating Maze Dataset")
+    print(f"   Total samples: {num_samples}")
+    
+    start_time = datetime.now()
+    
+    # Generate maze tasks directly (merged from create_maze_dataset_direct)
+    generator = MazeTaskGenerator()
     pairs = []
     
     total_possible = generator.get_total_possible_mazes()
-    print(f"🎯 Generating {num_samples} Simplified Irregular maze tasks (3x3 grids only)...")
+    print(f"🎯 Generating {num_samples} Simplified maze tasks (3x3 grids only)...")
     print(f"   (Estimated total possible: {total_possible:,} mazes)")
     
     for i in range(num_samples):
@@ -469,20 +304,21 @@ def create_irregular_dataset(num_samples: int = 20) -> MazeDataset:
             # Use simplified grid sizes (SIMPLIFIED: only 3x3 grids)
             grid_n = 3
             
-            pair_id = f"irregular_{i:04d}"
-            pair = generator.generate_irregular_pair(grid_n, pair_id)
+            pair_id = f"maze_{i:04d}"
+            pair = generator.generate_maze_pair(grid_n, pair_id)
             pairs.append(pair)
             
         except Exception as e:
-            print(f"Error generating Irregular maze {i}: {e}")
+            print(f"Error generating maze {i}: {e}")
             continue
     
+    # Create dataset object
     dataset = MazeDataset(
-        name="irregular_tasks", 
-        description=f"Simplified irregular maze tasks (3x3 grids only) with green dot/flag rendering ({len(pairs)} pairs)",
+        name="maze_tasks", 
+        description=f"Simplified maze tasks (3x3 grids only) with green dot/flag rendering ({len(pairs)} pairs)",
         pairs=pairs,
         metadata={
-            "task_category": "Irregular", 
+            "task_category": "Maze", 
             "total_possible": total_possible,
             "marker_style": "green_dot_flag",
             "generation_method": "kruskal_algorithm",
@@ -490,45 +326,23 @@ def create_irregular_dataset(num_samples: int = 20) -> MazeDataset:
         }
     )
     
-    # Don't save to intermediate folder anymore
-    print(f"✓ Generated {len(pairs)} Irregular tasks")
-    return dataset
+    print(f"✓ Generated {len(pairs)} maze tasks")
+    
+    elapsed = (datetime.now() - start_time).total_seconds()
+    
+    print(f"\n✅ Dataset creation complete!")
+    print(f"   Total tasks: {len(dataset)}")
+    print(f"   Time elapsed: {elapsed:.1f}s")
+    
+    # Convert to dictionary format like other domains
+    return {
+        "name": dataset.name,
+        "description": dataset.description,
+        "pairs": [asdict(pair) for pair in dataset.pairs],
+        "metadata": dataset.metadata,
+        "created_at": dataset.created_at
+    }
 
 
-def create_combined_dataset(knowwhat_samples: int = 15, irregular_samples: int = 15) -> MazeDataset:
-    """Create combined dataset with both task types."""
-    print(f"🚀 Creating Combined Maze Dataset")
-    print(f"   KnowWhat samples: {knowwhat_samples}")
-    print(f"   Irregular samples: {irregular_samples}")
-    print("=" * 70)
-    
-    # Generate both types
-    knowwhat_dataset = create_knowwhat_dataset(knowwhat_samples)
-    irregular_dataset = create_irregular_dataset(irregular_samples)
-    
-    # Combine
-    all_pairs = knowwhat_dataset.pairs + irregular_dataset.pairs
-    
-    combined_dataset = MazeDataset(
-        name="combined_maze_tasks",
-        description=f"Combined dataset with {len(knowwhat_dataset)} KnowWhat + {len(irregular_dataset)} Irregular tasks",
-        pairs=all_pairs,
-        metadata={
-            "knowwhat_count": len(knowwhat_dataset),
-            "irregular_count": len(irregular_dataset),
-            "irregular_total_possible": irregular_dataset.metadata.get("total_possible", 0)
-        }
-    )
-    
-    # Don't save to intermediate folder anymore
-    
-    print(f"\n🎉 Combined dataset created with {len(combined_dataset)} total pairs!")
-    print(f"   KnowWhat tasks: {len(knowwhat_dataset)} (algorithmic patterns)")
-    print(f"   Irregular tasks: {len(irregular_dataset)} (professional rendering)")
-    
-    return combined_dataset
-
-
-if __name__ == "__main__":
-    # Create sample combined dataset
-    dataset = create_combined_dataset(knowwhat_samples=5, irregular_samples=5)
+# Dataset creation should only be done via vmevalkit/runner/create_dataset.py
+# This module only provides the create_dataset() function as an API

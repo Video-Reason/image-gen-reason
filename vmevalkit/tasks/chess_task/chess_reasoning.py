@@ -470,7 +470,7 @@ def create_chess_task_pair(puzzle_data: Dict[str, Any], task_id: str) -> Dict[st
     return task_pair
 
 
-def create_chess_dataset(num_samples: int = 100) -> Dict[str, Any]:
+def create_dataset(num_samples: int = 100) -> Dict[str, Any]:
     """
     Create chess reasoning dataset in EXACT same format as maze dataset.
     
@@ -517,46 +517,5 @@ def create_chess_dataset(num_samples: int = 100) -> Dict[str, Any]:
     return dataset
 
 
-def main():
-    """Main function to generate chess dataset."""
-    print("🏁 Self-Contained Chess Reasoning Task Generator")
-    print("=" * 60)
-    
-    # Generate dataset with 100+ positions
-    dataset = create_chess_dataset(num_samples=100)
-    
-    # Show statistics
-    if dataset.get("pairs"):
-        pairs = dataset["pairs"]
-        
-        # Count by difficulty
-        difficulty_counts = {}
-        side_counts = {"white": 0, "black": 0}
-        
-        for pair in pairs:
-            diff = pair.get("difficulty", "easy")
-            difficulty_counts[diff] = difficulty_counts.get(diff, 0) + 1
-            
-            side = pair.get("side_to_move", "white")
-            side_counts[side] += 1
-        
-        print(f"\n📊 Dataset Statistics:")
-        print(f"   Total pairs: {len(pairs)}")
-        print(f"   By difficulty: {difficulty_counts}")
-        print(f"   By side to move: {side_counts}")
-        
-        # Show sample tasks
-        print(f"\n🎯 Sample Tasks:")
-        for i, pair in enumerate(pairs[:3]):
-            print(f"\n{i+1}. {pair['id']} ({pair['difficulty']})")
-            print(f"   Prompt: {pair['prompt']}")
-            print(f"   Side to move: {pair['side_to_move']}")
-            print(f"   Solutions: {', '.join(pair['mate_moves'])}")
-            print(f"   First image: {pair['first_image_path']}")
-            print(f"   Final image: {pair['final_image_path']}")
-    
-    print(f"\n🚀 Self-contained chess reasoning dataset ready!")
-
-
-if __name__ == "__main__":
-    main()
+# Dataset creation should only be done via vmevalkit/runner/create_dataset.py
+# This module only provides the create_dataset() function as an API

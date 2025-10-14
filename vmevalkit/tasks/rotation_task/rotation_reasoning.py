@@ -619,22 +619,5 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
     return dataset
 
 
-def main():
-    """Generate 3D mental rotation dataset."""
-    if not HAS_DEPENDENCIES:
-        print("❌ Cannot run - missing required dependencies (numpy, matplotlib, PIL)")
-        print("Please install with: pip install numpy matplotlib pillow")
-        return
-    
-    dataset = create_dataset(num_samples=50)
-    print(f"🚀 3D mental rotation reasoning dataset ready!")
-    print(f"📊 Dataset contains {len(dataset['pairs'])} rotation tasks")
-    
-    # Print difficulty distribution
-    difficulties = [pair["difficulty"] for pair in dataset["pairs"]]
-    difficulty_counts = {d: difficulties.count(d) for d in ["easy", "medium", "hard"]}
-    print(f"📈 Difficulty distribution: {difficulty_counts}")
-
-
-if __name__ == "__main__":
-    main()
+# Dataset creation should only be done via vmevalkit/runner/create_dataset.py
+# This module only provides the create_dataset() function as an API

@@ -3,14 +3,15 @@
 VMEvalKit Dataset Creation Script
 
 Directly generates the video reasoning evaluation dataset into per-question folder structure
-with 50 task pairs per domain, evenly distributed across all four reasoning domains:
+with <x> task pairs per domain, evenly distributed across all four reasoning domains:
 
 - Chess: Strategic thinking and tactical pattern recognition
 - Maze: Spatial reasoning and navigation planning  
 - RAVEN: Abstract reasoning and pattern completion
 - Rotation: 3D mental rotation and spatial visualization
+- Add more task domains here
 
-Total: 200 task pairs (50 per domain)
+Total: <x> task pairs (<x> per domain)
 
 Author: VMEvalKit Team
 """
@@ -23,11 +24,48 @@ import argparse
 import shutil
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Callable
 
 # Add the project root to Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
+
+# Domain Registry: Scalable way to add new domains
+# Each entry contains configuration for dataset generation
+DOMAIN_REGISTRY = {
+    'chess': {
+        'emoji': '♟️',
+        'name': 'Chess',
+        'description': 'Strategic thinking and tactical pattern recognition',
+        'module': 'vmevalkit.tasks.chess_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'maze': {
+        'emoji': '🌀',
+        'name': 'Maze',
+        'description': 'Spatial reasoning and navigation planning',
+        'module': 'vmevalkit.tasks.maze_task',
+        'create_function': 'create_dataset',  # Standard function like other domains
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'raven': {
+        'emoji': '🧩',
+        'name': 'RAVEN',
+        'description': 'Abstract reasoning and pattern completion',
+        'module': 'vmevalkit.tasks.raven_task.raven_reasoning',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'rotation': {
+        'emoji': '🔄',
+        'name': 'Rotation',
+        'description': '3D mental rotation and spatial visualization',
+        'module': 'vmevalkit.tasks.rotation_task.rotation_reasoning',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    }
+}
 
 def generate_domain_to_folders(domain_name: str, num_samples: int, 
                               output_base: Path, random_seed: int) -> List[Dict[str, Any]]:
@@ -44,6 +82,13 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
         List of task pair metadata dictionaries
     """
     
+    # Check if domain exists in registry
+    if domain_name not in DOMAIN_REGISTRY:
+        raise ValueError(f"Unknown domain: {domain_name}. Available domains: {list(DOMAIN_REGISTRY.keys())}")
+    
+    # Get domain configuration
+    domain_config = DOMAIN_REGISTRY[domain_name]
+    
     # Create domain-specific task folder
     domain_dir = output_base / f"{domain_name}_task"
     domain_dir.mkdir(parents=True, exist_ok=True)
@@ -54,38 +99,22 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
     generated_pairs = []
     
     try:
-        if domain_name == 'chess':
-            print(f"♟️  Generating {num_samples} Chess Tasks...")
-            from vmevalkit.tasks.chess_task import create_chess_dataset
-            dataset = create_chess_dataset(num_samples=num_samples)
-            pairs = dataset['pairs']
-            
-        elif domain_name == 'maze':
-            print(f"🌀 Generating {num_samples} Maze Tasks...")
-            from vmevalkit.tasks.maze_task import create_combined_dataset
-            # Split maze allocation between KnowWhat and Irregular (40/60)
-            knowwhat_count = max(1, num_samples * 2 // 5)  # ~40%
-            irregular_count = num_samples - knowwhat_count   # ~60%
-            maze_dataset = create_combined_dataset(
-                knowwhat_samples=knowwhat_count,
-                irregular_samples=irregular_count
-            )
-            pairs = [dict(pair.__dict__) for pair in maze_dataset.pairs]
+        # Print generation message with emoji
+        print(f"{domain_config['emoji']} Generating {num_samples} {domain_config['name']} Tasks...")
         
-        elif domain_name == 'raven':
-            print(f"🧩 Generating {num_samples} RAVEN Tasks...")
-            from vmevalkit.tasks.raven_task.raven_reasoning import create_dataset as create_raven_dataset
-            dataset = create_raven_dataset(num_samples=num_samples)
-            pairs = dataset['pairs']
-            
-        elif domain_name == 'rotation':
-            print(f"🔄 Generating {num_samples} Rotation Tasks...")
-            from vmevalkit.tasks.rotation_task.rotation_reasoning import create_dataset as create_rotation_dataset
-            dataset = create_rotation_dataset(num_samples=num_samples)
-            pairs = dataset['pairs']
-            
+        # Dynamic import and function call
+        import importlib
+        module = importlib.import_module(domain_config['module'])
+        create_func = getattr(module, domain_config['create_function'])
+        
+        # Call the creation function
+        dataset = create_func(num_samples=num_samples)
+        
+        # Process the dataset to extract pairs
+        if domain_config['process_dataset']:
+            pairs = domain_config['process_dataset'](dataset, num_samples)
         else:
-            raise ValueError(f"Unknown domain: {domain_name}")
+            pairs = dataset['pairs']  # Default assumption
         
         # Now write each pair directly to its folder
         base_dir = Path(__file__).parent.parent.parent
@@ -153,11 +182,12 @@ def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 
         Tuple of (dataset dictionary, path to questions directory)
     """
     
-    total_pairs = pairs_per_domain * 4
+    num_domains = len(DOMAIN_REGISTRY)
+    total_pairs = pairs_per_domain * num_domains
     
     print("=" * 70)
     print("🚀 VMEvalKit Dataset Creation - Direct Folder Generation")
-    print(f"🎯 Total target: {total_pairs} task pairs across 4 domains")
+    print(f"🎯 Total target: {total_pairs} task pairs across {num_domains} domains")
     print("=" * 70)
     
     # Setup output directory
@@ -165,12 +195,10 @@ def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 
     output_base = base_dir / "data" / "questions"
     output_base.mkdir(parents=True, exist_ok=True)
     
-    # Equal allocation across domains
+    # Equal allocation across all registered domains
     allocation = {
-        'chess': pairs_per_domain,
-        'maze': pairs_per_domain,
-        'raven': pairs_per_domain,
-        'rotation': pairs_per_domain
+        domain: pairs_per_domain 
+        for domain in DOMAIN_REGISTRY.keys()
     }
     
     print(f"📈 Task Distribution:")
@@ -205,22 +233,11 @@ def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 
             "actual_pairs": len(all_pairs),
             "allocation": allocation,
             "domains": {
-                "chess": {
-                    "count": len([p for p in all_pairs if p.get('domain') == 'chess']),
-                    "description": "Strategic thinking and tactical pattern recognition"
-                },
-                "maze": {
-                    "count": len([p for p in all_pairs if p.get('domain') == 'maze']),
-                    "description": "Spatial reasoning and navigation planning"
-                },
-                "raven": {
-                    "count": len([p for p in all_pairs if p.get('domain') == 'raven']),
-                    "description": "Abstract reasoning and pattern completion"
-                },
-                "rotation": {
-                    "count": len([p for p in all_pairs if p.get('domain') == 'rotation']),
-                    "description": "3D mental rotation and spatial visualization"
+                domain: {
+                    "count": len([p for p in all_pairs if p.get('domain') == domain]),
+                    "description": config['description']
                 }
+                for domain, config in DOMAIN_REGISTRY.items()
             }
         },
         "pairs": all_pairs
@@ -249,7 +266,7 @@ def read_dataset_from_folders(base_dir: Path = None) -> Dict[str, Any]:
         base_dir = Path(base_dir)
     
     all_pairs = []
-    domains = ['chess', 'maze', 'raven', 'rotation']
+    domains = list(DOMAIN_REGISTRY.keys())
     
     for domain in domains:
         domain_dir = base_dir / f"{domain}_task"
@@ -302,22 +319,12 @@ def read_dataset_from_folders(base_dir: Path = None) -> Dict[str, Any]:
         "total_pairs": len(all_pairs),
         "generation_info": {
             "domains": {
-                "chess": {
-                    "count": len([p for p in all_pairs if p.get('domain') == 'chess']),
-                    "description": "Strategic thinking and tactical pattern recognition"
-                },
-                "maze": {
-                    "count": len([p for p in all_pairs if p.get('domain') == 'maze']),
-                    "description": "Spatial reasoning and navigation planning"
-                },
-                "raven": {
-                    "count": len([p for p in all_pairs if p.get('domain') == 'raven']),
-                    "description": "Abstract reasoning and pattern completion"
-                },
-                "rotation": {
-                    "count": len([p for p in all_pairs if p.get('domain') == 'rotation']),
-                    "description": "3D mental rotation and spatial visualization"
+                domain: {
+                    "count": len([p for p in all_pairs if p.get('domain') == domain]),
+                    "description": DOMAIN_REGISTRY.get(domain, {}).get('description', 'Unknown domain')
                 }
+                for domain in domains
+                if domain in DOMAIN_REGISTRY
             }
         },
         "pairs": all_pairs

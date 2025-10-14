@@ -684,18 +684,5 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
     return dataset
 
 
-def main():
-    """Generate RAVEN Progressive Matrix dataset."""
-    try:
-        dataset = create_dataset(num_samples=50)
-        print(f"🚀 RAVEN Progressive Matrix reasoning dataset ready!")
-        print(f"📁 Generated {len(dataset['pairs'])} task pairs")
-        
-    except Exception as e:
-        print(f"❌ Error generating RAVEN dataset: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-if __name__ == "__main__":
-    main()
+# Dataset creation should only be done via vmevalkit/runner/create_dataset.py
+# This module only provides the create_dataset() function as an API

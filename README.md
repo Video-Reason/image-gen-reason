@@ -32,8 +32,8 @@ runner = InferenceRunner(output_dir="output")
 # Generate video solution
 result = runner.run(
     model_name="luma-ray-2",
-    image_path="data/questions/maze_task/knowwhat_0000/first_frame.png",
-    text_prompt="Move the blue star through white corridors to the red circle"
+    image_path="data/questions/maze_task/maze_0000/first_frame.png",
+    text_prompt="Navigate the green dot through the maze corridors to reach the red flag"
 )
 
 print(f"Video saved to: {result['inference_dir']}")
@@ -152,7 +152,6 @@ Initialize after cloning:
 git submodule update --init --recursive
 ```
 
-- **KnowWhat**: Research on knowing-how vs knowing-that
 - **maze-dataset**: Maze datasets for ML evaluation
 - **HunyuanVideo-I2V**: High-quality image-to-video generation (720p)
 - **LTX-Video**: Real-time video generation models
