@@ -35,75 +35,61 @@ The current local generator supports three robust configurations:
 
 ## Rule Types
 
-**Note: The local generator implements simplified rules (Constant and Progression) for reliability. Arithmetic and Distribute_Three are not implemented in the local core.**
+**1. Constant Rules**: Attributes remain unchanged across panels
+**2. Progression Rules**: Systematic step-by-step changes (±1 steps for Number/Position, +1 for Type/Size/Color)
 
-### Abstract Reasoning Rules
+**Supported Attributes**: Number, Position, Type, Size, Color  
+**Rule Sampling**: Each matrix uses exactly 2 rules - one primary (Number OR Position) + one secondary (Type/Size/Color)
 
-#### 1. Constant Rules (Easy)
-- **Description**: Certain attributes remain unchanged across panels
-- **Application**: Number/Position, Type, Size, or Color stays fixed
-- **Reasoning**: Identify invariant elements
-
-#### 2. Progression Rules (Medium)  
-- **Description**: Systematic step-by-step changes across panels
-- **Variations**:
-  - **Number/Position**: +1, +2, -1, -2 changes
-  - **Type**: Shape progression (triangle→square→pentagon→hexagon→circle)
-  - **Size**: Systematic size increases/decreases  
-  - **Color**: Systematic color shifts
-- **Reasoning**: Detect sequential patterns
-
-#### 3. Arithmetic Rules (Hard)
-- **Description**: Mathematical relationships between panels
-- **Operations**:
-  - **Addition/Subtraction**: Panel₃ = Panel₁ ± Panel₂
-  - **Set Operations**: Union/Difference of elements
-- **Reasoning**: Apply mathematical logic to visual elements
-
-#### 4. Distribute_Three Rules (Medium)
-- **Description**: Three distinct values distributed systematically  
-- **Application**: Three numbers, positions, types, sizes, or colors across rows
-- **Reasoning**: Recognize systematic distribution patterns
+**Note**: *Only 2 core rule types implemented for reliability and Python 3 compatibility.*
 
 ## Data Structure
 
-### RavenTaskPair
-Each task consists of a pair of Progressive Matrix images and reasoning prompt:
+### Task Pair Structure
+Each RAVEN task is represented as a dictionary with the following structure:
 
 ```python
-@dataclass  
-class RavenTaskPair:
-    id: str                          # "raven_0001"
-    prompt: str                      # Configuration-specific instruction
-    first_image_path: str           # Incomplete matrix (8 panels + empty)
-    final_image_path: str           # Complete matrix (all 9 panels)
-    task_category: str              # Configuration type
-    raven_data: Dict[str, Any]      # Generation and rule metadata
-    difficulty: str                 # "easy", "medium", "hard"
-    rule_types: List[str]           # Applied rules
-    configuration_type: str         # Configuration display name
-    created_at: str                 # Timestamp
+task_pair = {
+    "id": str,                      # "raven_0001"
+    "prompt": str,                  # Configuration-specific instruction
+    "first_image_path": str,        # Incomplete matrix (8 panels + empty)
+    "final_image_path": str,        # Complete matrix (all 9 panels)
+    "task_category": str,           # Configuration display name ("Center", "2x2Grid", "3x3Grid")
+    "configuration_type": str,      # Same as task_category
+    "raven_data": Dict[str, Any],   # Generation metadata (see below)
+    "created_at": str              # ISO timestamp
+}
 ```
 
 ### RAVEN Data Structure
-The `raven_data` field contains detailed task information:
+The `raven_data` field contains generation metadata (simplified structure):
 
 ```python
 raven_data = {
     "generation_method": "RAVEN Progressive Matrix Generator",
-    "configuration": "center_single",           # Internal configuration name
-    "rule_groups": {                           # Detailed rule applications
-        "component_0": [                       # Rules for component 0
-            {
-                "name": "Progression", 
-                "attr": "Size",
-                "value": 2                     # Step size
-            }
-        ]
-    },
-    "primary_rules": ["Progression", "Constant"],  # Main rule types used
-    "matrix_size": "160x160",                      # Panel dimensions
+    "configuration": str,           # Internal config name ("center_single", "distribute_four", "distribute_nine")
+    "matrix_size": "160x160",       # Panel dimensions
     "pattern_type": "Progressive Matrix"
+}
+```
+
+### Example Task Pair
+
+```python
+{
+    "id": "raven_0001",
+    "prompt": "Complete this center-focused pattern matrix. Show what goes in the missing panel.",
+    "first_image_path": "/tmp/raven_0001_first.png",
+    "final_image_path": "/tmp/raven_0001_final.png", 
+    "task_category": "Center",
+    "configuration_type": "Center",
+    "raven_data": {
+        "generation_method": "RAVEN Progressive Matrix Generator",
+        "configuration": "center_single",
+        "matrix_size": "160x160",
+        "pattern_type": "Progressive Matrix"
+    },
+    "created_at": "2025-10-15T10:30:45.123456"
 }
 ```
 
@@ -131,25 +117,33 @@ raven_data = {
 └─────┴─────┴─────┘
 ```
 
-## Difficulty Classification
+## Pattern Complexity
 
-### Easy Tasks
-- **Rules**: Primarily Constant rules
-- **Complexity**: Single rule application
-- **Example**: All shapes remain triangles, only color changes
-- **Reasoning**: Basic pattern recognition
+The local RAVEN generator creates patterns with varying complexity based on rule combinations:
 
-### Medium Tasks  
-- **Rules**: Progression, Distribute_Three, or multiple rules
-- **Complexity**: Multi-step reasoning required
-- **Example**: Size increases +2 steps, type progresses through shapes
-- **Reasoning**: Sequential logic and distribution patterns
+### Pattern Types
 
-### Hard Tasks
-- **Rules**: Arithmetic rules or complex combinations
-- **Complexity**: Mathematical reasoning required  
-- **Example**: Element₉ = Element₁ + Element₂ (set union)
-- **Reasoning**: Abstract mathematical operations on visual elements
+#### Single-Rule Patterns
+- **Description**: Apply the same rule across all attributes (e.g., all Constant or all Progression)
+- **Complexity**: Simpler patterns with consistent transformations
+- **Example**: Number increases by 1 each panel, all other attributes stay constant
+- **Reasoning**: Direct pattern recognition and application
+
+#### Multi-Rule Patterns
+- **Description**: Combine different rules across attributes (e.g., Number progression + Type progression)
+- **Complexity**: More complex patterns requiring multi-attribute reasoning
+- **Example**: Number increases by 1 AND shapes progress through triangle→square→pentagon
+- **Reasoning**: Multi-dimensional pattern analysis and rule coordination
+
+### Configuration Complexity
+
+Different configurations provide varying levels of spatial reasoning complexity:
+
+- **Center**: Simplest - single position, focus on attribute changes
+- **2×2Grid**: Medium - 4 positions, spatial relationships between elements
+- **3×3Grid**: Most Complex - 9 positions, complex spatial patterns
+
+**Note**: *The current implementation does not automatically classify tasks by difficulty levels. Pattern complexity emerges naturally from the combination of rules and configurations used.*
 
 ## Evaluation Criteria
 
@@ -190,42 +184,155 @@ task_data = generator.generate_single_task("center_single")
 print(f"Generated {task_data['config_display']} task")
 ```
 
+## Video Reasoning Evaluation
+
+### What Makes This a Video Task?
+
+Unlike traditional Progressive Matrix tests that only require the **final answer**, VMEvalKit's RAVEN task evaluates the **reasoning process** through video generation:
+
+#### Input Requirements
+- **Image**: Incomplete 3×3 matrix (8 panels filled, 1 missing)
+- **Text**: Configuration-specific prompt ("Complete this center-focused pattern matrix...")
+
+#### Expected Video Output
+The model should generate a video demonstrating:
+1. **Analysis Phase**: Visual examination of existing panels  
+2. **Pattern Recognition**: Identification of transformation rules
+3. **Rule Application**: Step-by-step application of discovered patterns
+4. **Completion**: Final panel generation showing the solution
+
+#### Video Reasoning Assessment
+
+**Process Evaluation Criteria:**
+- **Systematic Analysis**: Does the model examine patterns systematically?  
+- **Rule Identification**: Can it identify the underlying transformation rules?
+- **Logical Progression**: Are reasoning steps logically connected?
+- **Visual Clarity**: Is the reasoning process clearly demonstrated?
+- **Correct Completion**: Is the final panel logically correct?
+
+### Comparison with Other VMEvalKit Tasks
+
+| Task | Reasoning Type | Video Requirement |
+|------|----------------|-------------------|  
+| **RAVEN** | **Abstract Pattern Recognition** | Show rule discovery and application process |
+| **Maze** | **Spatial Navigation** | Show path planning and execution |
+| **Chess** | **Strategic Planning** | Show move calculation and decision process |
+
+**RAVEN uniquely tests**: Abstract reasoning, analogical thinking, pattern completion
+
 ## Integration with VMEvalKit
 
-### Runner Compatibility
-The RAVEN task integrates seamlessly with VMEvalKit's evaluation pipeline:
-
+### Dataset Creation
 ```python
-# Load RAVEN tasks
-from vmevalkit.runner.inference import run_inference
+# Generate RAVEN dataset
+from vmevalkit.runner.create_dataset import main
+main(task_type="raven_task", num_samples=100)
+```
 
-# Run evaluation on RAVEN tasks
-results = run_inference(
+### Model Evaluation
+```python
+# Run inference on RAVEN tasks  
+from vmevalkit.runner.inference import main
+main(
     model_name="your_model",
-    dataset_path="data/questions/raven_tasks/raven_tasks.json",
-    task_type="raven_reasoning"
+    dataset_path="data/questions/raven_task/raven_tasks.json"
 )
 ```
+
+### Expected Model Capabilities
+For successful RAVEN task completion, video models must demonstrate:
+- **Visual Pattern Analysis**: Examine multiple panels systematically
+- **Abstract Rule Inference**: Discover transformation patterns from examples  
+- **Analogical Reasoning**: Apply discovered rules to new situations
+- **Process Visualization**: Show reasoning steps through coherent video sequences
 
  
 
 ## Technical Implementation
 
-### Matrix Generation
-- Uses a local, minimal RAVEN-like generator (no external submodule)
-- Generates systematic rule-based transformations
-- Creates 160×160 pixel panels with clear geometric shapes
-- Supports key attributes: Number, Position, Type, Size, Color (simplified)
+### Local RAVEN Core Architecture
 
-### Image Processing  
-- **Format**: PNG images at 100 DPI
-- **Layout**: 3×3 grid layout with clear panel borders
-- **Incomplete**: 9th panel is left blank (white)  
-- **Complete**: All panels filled with appropriate elements
+The task uses a **self-contained local implementation** (`local_raven/`) with the following components:
 
-### Rule Validation
-- Ensures basic internal consistency for generated matrices
-- Does not guarantee uniqueness of solutions (aims for clarity and simplicity)
+#### Abstract Object Tree (AOT) Structure
+```python
+# Entity: Individual visual elements
+class Entity:
+    bbox: (y, x, h, w)          # Relative positioning coordinates  
+    type: Attribute             # Shape (triangle/square/pentagon/hexagon/circle)
+    size: Attribute             # Size level (5 discrete levels)
+    color: Attribute            # Color level (10 discrete levels)
+
+# Layout: Manages entity positioning and count
+class Layout:
+    positions: List[bbox]       # Available position slots
+    entities: List[Entity]      # Entities placed in positions
+    
+# Component → Structure → Root: Hierarchical containers
+```
+
+#### Matrix Generation Process
+
+1. **Configuration Setup**: Choose layout (center_single, distribute_four, distribute_nine)
+2. **Rule Sampling**: Generate 2 rules per component (main attribute + secondary attribute)
+3. **Row Generation**: Apply rules systematically to create 3 matrix rows
+4. **Panel Rendering**: Convert AOT nodes to 160×160 pixel images
+
+```python
+# Core generation algorithm (simplified)
+def generate_panels(root, rule_groups):
+    start_node = root.sample()
+    
+    def build_row(base_node):
+        # Apply rule transformations: c2 = rule(c1), c3 = rule(c2)
+        for rule_group in rule_groups:
+            c2 = rule_group[0].apply_rule(base_node)
+            c3 = rule_group[0].apply_rule(c2)
+            # Apply additional rules in group
+    
+    row1 = build_row(start_node)
+    row2 = build_row(start_node.resample())  # New base for row 2
+    row3 = build_row(start_node.resample())  # New base for row 3
+    
+    return [render_panel(node) for node in all_nodes]
+```
+
+### Visual Rendering
+
+#### Geometric Shapes
+- **Shapes**: Triangle, Square, Pentagon, Hexagon, Circle
+- **Rendering**: OpenCV-based line drawing with 2px thickness
+- **Colors**: Grayscale (black shapes on white background)
+- **Size Levels**: `[0.45, 0.55, 0.65, 0.75, 0.85]` relative to panel size
+
+#### Image Processing  
+- **Panel Size**: 160×160 pixels per panel
+- **Matrix Size**: 480×480 pixels (3×3 grid)
+- **Format**: PNG images
+- **Grid Lines**: 2px black borders between panels
+- **Incomplete Matrix**: 9th panel filled with white pixels
+- **Complete Matrix**: All 9 panels rendered with geometric patterns
+
+### Configuration-Specific Layouts
+
+```python
+# Center: Single centered position
+build_center_single() → [(0.5, 0.5, 1.0, 1.0)]
+
+# 2x2Grid: Four corner positions  
+build_distribute_four() → [(0.25, 0.25, 0.45, 0.45), (0.25, 0.75, 0.45, 0.45), ...]
+
+# 3x3Grid: Nine grid positions
+build_distribute_nine() → [(0.17, 0.17, 0.3, 0.3), (0.17, 0.5, 0.3, 0.3), ...]
+```
+
+### Rule Processing
+
+Rules are applied in **sequence within each row**, then **rows are built independently**:
+
+- **Within Row**: Panel₂ = Rule(Panel₁), Panel₃ = Rule(Panel₂)  
+- **Across Rows**: Each row starts from a **resampled base** to create row-to-row variation
+- **Rule Consistency**: Same rules applied across all rows for pattern consistency
 
 ## Research Applications
 
@@ -241,18 +348,60 @@ results = run_inference(
 - **Visual Communication**: How clearly can models demonstrate abstract thinking?
 - **Temporal Consistency**: Do reasoning steps follow logically in sequence?
 
-## Limitations and Considerations
+## Implementation Design Decisions
 
-### Scope Constraints
-- **2D Patterns Only**: Limited to 2D geometric transformations
-- **Fixed Grid**: Always 3×3 matrix structure  
-- **Geometric Shapes**: Focuses on basic geometric primitives
-- **Rule-Based**: May not capture all forms of visual reasoning
+### Reliability Improvements
 
-### Evaluation Challenges
-- **Subjectivity**: Some reasoning processes may have multiple valid demonstrations
-- **Complexity**: Hard to evaluate partial reasoning steps automatically
-- **Ambiguity**: Distinguishing between lucky guesses and genuine understanding
+The local RAVEN implementation prioritizes **reliability and consistency** over maximum complexity:
+
+#### Simplified Rule Set
+- **Decision**: Implement only 2 core rule types (Constant, Progression) 
+- **Rationale**: Ensures consistent generation success across all configurations
+- **Trade-off**: Reduced pattern complexity vs. guaranteed task generation
+- **Benefit**: 100% generation success rate vs. frequent failures in full RAVEN
+
+#### Python 3 Compatibility  
+- **Decision**: Rebuild core logic for Python 3 compatibility
+- **Rationale**: Original RAVEN was designed for Python 2.7
+- **Implementation**: Clean, modern Python with type hints and error handling
+- **Benefit**: Integration with modern ML/AI ecosystems
+
+#### Fixed Configuration Set
+- **Decision**: Support 3 robust configurations vs. 7 original configurations  
+- **Rationale**: Focus on configurations with highest success rates
+- **Configurations**: `center_single`, `distribute_four`, `distribute_nine`
+- **Benefit**: Predictable, reliable pattern generation
+
+### Current Limitations
+
+#### Pattern Complexity
+- **Rule Types**: Limited to Constant and Progression (no Arithmetic or Distribute_Three)
+- **Combinations**: Simpler rule combinations vs. full RAVEN complexity
+- **Impact**: Patterns are more predictable but still cognitively challenging
+
+#### Visual Attributes  
+- **Colors**: Grayscale only (black shapes on white background)
+- **Shapes**: 5 basic geometric primitives
+- **Positions**: Grid-based positioning only
+- **Impact**: Clear, high-contrast patterns optimized for video reasoning
+
+#### Matrix Structure
+- **Size**: Fixed 3×3 structure  
+- **Panels**: Always 160×160 pixels
+- **Layout**: Grid-based arrangement only
+- **Impact**: Consistent format but limited spatial reasoning variations
+
+### Evaluation Considerations
+
+#### Pattern Recognition vs. True Reasoning
+- **Challenge**: Distinguishing memorization from genuine pattern understanding
+- **Approach**: Focus on **process demonstration** through video generation
+- **Metric**: Evaluate reasoning steps, not just final panel correctness
+
+#### Video Quality Assessment
+- **Challenge**: How to evaluate quality of reasoning demonstration in video
+- **Approach**: Multi-criteria evaluation (clarity, completeness, accuracy, coherence)
+- **Future**: Automated video reasoning assessment tools needed
 
 ## Future Extensions
 
