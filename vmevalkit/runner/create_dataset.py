@@ -3,13 +3,13 @@
 VMEvalKit Dataset Creation Script
 
 Directly generates the video reasoning evaluation dataset into per-question folder structure
-with <x> task pairs per domain, evenly distributed across all four reasoning domains:
+with <x> task pairs per domain, evenly distributed across all five reasoning domains:
 
 - Chess: Strategic thinking and tactical pattern recognition
 - Maze: Spatial reasoning and navigation planning  
 - RAVEN: Abstract reasoning and pattern completion
 - Rotation: 3D mental rotation and spatial visualization
-- Add more task domains here
+- Sudoku: Logical reasoning and constraint satisfaction
 
 Total: <x> task pairs (<x> per domain)
 
@@ -61,7 +61,7 @@ DOMAIN_REGISTRY = {
         'emoji': '🧩',
         'name': 'RAVEN',
         'description': 'Abstract reasoning and pattern completion',
-        'module': 'vmevalkit.tasks.raven_task.raven_reasoning',
+        'module': 'vmevalkit.tasks.raven_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
@@ -70,6 +70,14 @@ DOMAIN_REGISTRY = {
         'name': 'Rotation',
         'description': '3D mental rotation and spatial visualization',
         'module': 'vmevalkit.tasks.rotation_task.rotation_reasoning',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'sudoku': {
+        'emoji': '🔢',
+        'name': 'Sudoku',
+        'description': 'Logical reasoning and constraint satisfaction',
+        'module': 'vmevalkit.tasks.sudoku_task.sudoku_reasoning',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }

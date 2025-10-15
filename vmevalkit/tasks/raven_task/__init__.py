@@ -5,13 +5,14 @@ This module provides functionality to generate RPM-style puzzles
 for evaluating video model reasoning capabilities.
 """
 
-from .rpm_generator import RPMPuzzleGenerator, generate_puzzle
-from .batch_generate import main as batch_generate
+from .rpm_generator import RPMPuzzleGenerator
+from .raven_reasoning import create_dataset, visualize_solution_process, generate_raven_tasks
 
 __all__ = [
     'RPMPuzzleGenerator',
-    'generate_puzzle', 
-    'batch_generate'
+    'create_dataset',  # Required for VMEvalKit integration
+    'visualize_solution_process',
+    'generate_raven_tasks'
 ]
 
 # Task metadata

@@ -87,7 +87,7 @@ from vmevalkit.tasks.sudoku_task import create_dataset
 
 # Generate dataset with mixed difficulties
 dataset = create_dataset(
-    num_tasks=10,
+    num_samples=10,
     difficulties=[0, 1, 2],  # Easy, Medium, Hard
     output_dir="data/questions/sudoku_task"
 )

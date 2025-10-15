@@ -295,7 +295,7 @@ class SudokuTaskGenerator:
         
         return task_pair
     
-    def generate_dataset(self, num_tasks: int = 10, difficulties: List[int] = None,
+    def generate_dataset(self, num_samples: int = 10, difficulties: List[int] = None,
                         output_dir: Optional[Path] = None) -> SudokuDataset:
         """Generate a dataset of 3x3 sudoku tasks."""
         
@@ -307,20 +307,59 @@ class SudokuTaskGenerator:
         
         tasks = []
         
-        print(f"🧩 Generating {num_tasks} 3x3 Sudoku tasks...")
+        print(f"🧩 Generating {num_samples} 3x3 Sudoku tasks...")
         
-        for i in range(num_tasks):
+        for i in range(num_samples):
             difficulty = random.choice(difficulties)
             task_id = f"sudoku_3x3_{i:04d}"
             
             try:
                 task = self.generate_single_task(task_id, difficulty, output_dir)
                 tasks.append(task)
-                print(f"✅ Generated task {i+1}/{num_tasks}: {task_id} ({task.difficulty}) - {task.num_given}/9 given")
+                print(f"✅ Generated task {i+1}/{num_samples}: {task_id} ({task.difficulty}) - {task.num_given}/9 given")
             except Exception as e:
                 print(f"❌ Failed to generate task {task_id}: {e}")
                 continue
         
+        # Convert task pairs to dictionaries for consistency with other tasks
+        task_dicts = []
+        for task in tasks:
+            task_dict = {
+                'id': task.id,
+                'prompt': task.prompt,
+                'first_image_path': task.first_image_path,
+                'final_image_path': task.final_image_path,
+                'task_category': task.task_category,
+                'difficulty': task.difficulty,
+                'sudoku_data': task.sudoku_data,
+                'puzzle_array': task.puzzle_array,
+                'solution_array': task.solution_array,
+                'num_given': task.num_given,
+                'created_at': task.created_at
+            }
+            task_dicts.append(task_dict)
+        
+        # Create dataset dictionary for consistency with other tasks
+        dataset_dict = {
+            'name': "3x3 Sudoku Reasoning Dataset",
+            'description': "Simple 3x3 Sudoku puzzles for video model reasoning evaluation",
+            'pairs': task_dicts,
+            'metadata': {
+                "total_tasks": len(tasks),
+                "difficulties": difficulties,
+                "grid_size": "3x3",
+                "generation_date": datetime.now().isoformat(),
+                "task_categories": ["Sudoku"]
+            }
+        }
+        
+        # Save dataset
+        dataset_path = output_dir / "sudoku_3x3_dataset.json"
+        with open(dataset_path, 'w') as f:
+            json.dump(dataset_dict, f, indent=2)
+        print(f"💾 Saved dataset to {dataset_path}")
+        
+        # Also create the SudokuDataset object for compatibility
         dataset = SudokuDataset(
             name="3x3 Sudoku Reasoning Dataset", 
             description="Simple 3x3 Sudoku puzzles for video model reasoning evaluation",
@@ -334,12 +373,8 @@ class SudokuTaskGenerator:
             }
         )
         
-        # Save dataset
-        dataset_path = output_dir / "sudoku_3x3_dataset.json"
-        dataset.save(dataset_path)
-        print(f"💾 Saved dataset to {dataset_path}")
-        
-        return dataset
+        # Return the dictionary format for consistency with other tasks
+        return dataset_dict
 
 
 def generate_sudoku_board_image(sudoku_array: List[int], output_path: str) -> str:
@@ -349,7 +384,7 @@ def generate_sudoku_board_image(sudoku_array: List[int], output_path: str) -> st
     return output_path
 
 
-def create_dataset(num_tasks: int = 10, difficulties: List[int] = None,
+def create_dataset(num_samples: int = 10, difficulties: List[int] = None,
                   output_dir: Optional[str] = None) -> SudokuDataset:
     """Main function to create 3x3 sudoku dataset."""
     
@@ -357,10 +392,10 @@ def create_dataset(num_tasks: int = 10, difficulties: List[int] = None,
         output_dir = Path(output_dir)
     
     generator = SudokuTaskGenerator()
-    return generator.generate_dataset(num_tasks, difficulties, output_dir)
+    return generator.generate_dataset(num_samples, difficulties, output_dir)
 
 
 if __name__ == "__main__":
     # Example usage
-    dataset = create_dataset(num_tasks=5, difficulties=[0, 1, 2])
+    dataset = create_dataset(num_samples=5, difficulties=[0, 1, 2])
     print(f"Generated 3x3 Sudoku dataset with {len(dataset)} tasks")
