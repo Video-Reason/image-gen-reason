@@ -4,7 +4,6 @@
 import numpy as np
 from .const import (
     ANGLE_MAX, ANGLE_MIN, ANGLE_VALUES,
-    COLOR_MAX, COLOR_MIN, COLOR_VALUES,
     NUM_MAX, NUM_MIN, NUM_VALUES,
     SIZE_MAX, SIZE_MIN, SIZE_VALUES,
     TYPE_MAX, TYPE_MIN, TYPE_VALUES,
@@ -145,46 +144,6 @@ class Size(Attribute):
         min_level = max(self.min_level, min_level)
         max_level = min(self.max_level, max_level)
         self.value_level = np.random.choice(range(min_level, max_level + 1))   
-
-    def sample_new(self, min_level=None, max_level=None, previous_values=None):
-        if min_level is None or max_level is None:
-            values = range(self.min_level, self.max_level + 1)
-        else:
-            values = range(min_level, max_level + 1)
-        if not previous_values:
-            available = set(values) - set(self.previous_values) - set([self.value_level])
-        else:
-            available = set(values) - set(previous_values) - set([self.value_level])
-        if not available:
-            available = set(values)
-        new_idx = np.random.choice(list(available))
-        return new_idx
-
-    def get_value_level(self):
-        return self.value_level
-    
-    def set_value_level(self, value_level):
-        self.value_level = value_level
-
-    def get_value(self, value_level=None):
-        if value_level is None:
-            value_level = self.value_level
-        return self.values[value_level]
-
-
-class Color(Attribute):
-
-    def __init__(self, min_level=COLOR_MIN, max_level=COLOR_MAX):
-        super(Color, self).__init__("Color")
-        self.value_level = 0
-        self.values = COLOR_VALUES
-        self.min_level = min_level
-        self.max_level = max_level
-
-    def sample(self, min_level=COLOR_MIN, max_level=COLOR_MAX):
-        min_level = max(self.min_level, min_level)
-        max_level = min(self.max_level, max_level)
-        self.value_level = np.random.choice(range(min_level, max_level + 1))
 
     def sample_new(self, min_level=None, max_level=None, previous_values=None):
         if min_level is None or max_level is None:

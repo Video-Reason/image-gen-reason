@@ -8,7 +8,7 @@ try:
 except ImportError:
     from math import comb
 
-from .attributes import Angle, Color, Number, Position, Size, Type, Uniformity
+from .attributes import Angle, Number, Position, Size, Type, Uniformity
 from .constraints import rule_constraint
 
 
@@ -318,13 +318,10 @@ class Layout(AoTNode):
         type_max = self.entity_constraint["Type"][1]
         size_min = self.entity_constraint["Size"][0]
         size_max = self.entity_constraint["Size"][1]
-        color_min = self.entity_constraint["Color"][0]
-        color_max = self.entity_constraint["Color"][1]
         new_constraints = rule_constraint(rule_group, num_min, num_max, 
                                                       uni_min, uni_max,
                                                       type_min, type_max,
-                                                      size_min, size_max,
-                                                      color_min, color_max)
+                                                      size_min, size_max)
         new_layout_constraint, new_entity_constraint = new_constraints
         new_num_min = new_layout_constraint["Number"][0]
         new_num_max = new_layout_constraint["Number"][1]
@@ -342,10 +339,6 @@ class Layout(AoTNode):
         new_size_max = new_entity_constraint["Size"][1]
         if new_size_min > new_size_max:
             return None
-        new_color_min = new_entity_constraint["Color"][0]
-        new_color_max = new_entity_constraint["Color"][1]                                    
-        if new_color_min > new_color_max:
-            return None
 
         new_layout_constraint = copy.deepcopy(self.layout_constraint)
         new_layout_constraint["Number"][:] = [new_num_min, new_num_max]
@@ -354,7 +347,6 @@ class Layout(AoTNode):
         new_entity_constraint = copy.deepcopy(self.entity_constraint)
         new_entity_constraint["Type"][:] = [new_type_min, new_type_max]
         new_entity_constraint["Size"][:] = [new_size_min, new_size_max]
-        new_entity_constraint["Color"][:] = [new_color_min, new_color_max]
         return Layout(self.name, new_layout_constraint, new_entity_constraint,
                                  self.orig_layout_constraint, self.orig_entity_constraint,
                                  self.sample_new_num_count)
@@ -404,11 +396,6 @@ class Layout(AoTNode):
                 new_value_level = self.children[index].size.sample_new(min_level, max_level)
                 self.children[index].size.set_value_level(new_value_level)
                 layout.children[index].size.previous_values.append(new_value_level)
-        elif attr_name == "Color":
-            for index in range(len(self.children)):
-                new_value_level = self.children[index].color.sample_new(min_level, max_level)
-                self.children[index].color.set_value_level(new_value_level)
-                layout.children[index].color.previous_values.append(new_value_level)
         else:
             raise ValueError("Unsupported operation")
 
@@ -426,8 +413,6 @@ class Entity(AoTNode):
         self.type.sample()
         self.size = Size(min_level=entity_constraint["Size"][0], max_level=entity_constraint["Size"][1])
         self.size.sample()
-        self.color = Color(min_level=entity_constraint["Color"][0], max_level=entity_constraint["Color"][1])
-        self.color.sample()
         self.angle = Angle(min_level=entity_constraint["Angle"][0], max_level=entity_constraint["Angle"][1])
         self.angle.sample()
     
@@ -441,5 +426,4 @@ class Entity(AoTNode):
     def resample(self):
         self.type.sample()
         self.size.sample()
-        self.color.sample()
         self.angle.sample()

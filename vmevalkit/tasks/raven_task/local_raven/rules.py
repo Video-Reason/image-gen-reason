@@ -79,40 +79,10 @@ class Progression(Rule):
                 new_level = current + self.value
                 new_level = max(entity.size.min_level, min(new_level, entity.size.max_level))
                 entity.size.set_value_level(new_level)
-                
-        elif self.attr == "Color":
-            # Progress entity colors
-            for entity in layout.children:
-                current = entity.color.get_value_level()
-                new_level = current + self.value
-                new_level = max(entity.color.min_level, min(new_level, entity.color.max_level))
-                entity.color.set_value_level(new_level)
         
         return out
 
 
-class Arithmetic(Rule):
-    """Arithmetic rule - additive/subtractive operations."""
-    def __init__(self, attr: str, value: int, component_idx: int):
-        super().__init__("Arithmetic", attr, value, component_idx)
-    
-    def apply_rule(self, aot, in_aot=None):
-        """Apply arithmetic operation."""
-        # For now, treat as progression for simplicity
-        # Full arithmetic implementation would combine attributes from multiple panels
-        return Progression(self.attr, self.value, self.component_idx).apply_rule(aot, in_aot)
-
-
-class Distribute_Three(Rule):
-    """Distribute Three rule - three different values across panels."""
-    def __init__(self, attr: str, component_idx: int):
-        super().__init__("Distribute_Three", attr, 0, component_idx)
-    
-    def apply_rule(self, aot, in_aot=None):
-        """Apply distribute three rule."""
-        # For now, treat as constant for simplicity
-        # Full implementation would ensure three distinct values
-        return copy.deepcopy(in_aot or aot)
 
 
 def Rule_Wrapper(name: str, attr: str, param, component_idx: int):
@@ -122,11 +92,6 @@ def Rule_Wrapper(name: str, attr: str, param, component_idx: int):
     elif name == "Progression":
         value = param if isinstance(param, int) else 1
         return Progression(attr, value, component_idx)
-    elif name == "Arithmetic":
-        value = param if isinstance(param, int) else 1
-        return Arithmetic(attr, value, component_idx)
-    elif name == "Distribute_Three":
-        return Distribute_Three(attr, component_idx)
     else:
         # Fallback to Constant for unknown rules
         return Constant(attr, component_idx)

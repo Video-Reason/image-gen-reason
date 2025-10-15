@@ -7,7 +7,7 @@ Tests video models' ability to demonstrate abstract visual reasoning through pat
 Key capabilities:
 - Generate Progressive Matrix puzzles with 7 different configurations
 - Create incomplete→complete image pairs for video reasoning evaluation
-- Support multiple rule types: Constant, Progression, Arithmetic, Distribute_Three
+- Support multiple rule types: Constant, Progression
 - Classify tasks by difficulty and pattern complexity
 - Evaluate abstract reasoning and analogical thinking in video models
 """

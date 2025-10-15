@@ -36,10 +36,10 @@ The current local generator supports three robust configurations:
 ## Rule Types
 
 **1. Constant Rules**: Attributes remain unchanged across panels
-**2. Progression Rules**: Systematic step-by-step changes (±1 steps for Number/Position, +1 for Type/Size/Color)
-
-**Supported Attributes**: Number, Position, Type, Size, Color  
-**Rule Sampling**: Each matrix uses exactly 2 rules - one primary (Number OR Position) + one secondary (Type/Size/Color)
+**2. Progression Rules**: Systematic step-by-step changes (±1 steps for Number/Position, +1 for Type/Size)
+  
+**Supported Attributes**: Number, Position, Type, Size  
+**Rule Sampling**: Each matrix uses exactly 2 rules - one primary (Number OR Position) + one secondary (Type/Size)
 
 **Note**: *Only 2 core rule types implemented for reliability and Python 3 compatibility.*
 

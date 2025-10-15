@@ -88,7 +88,6 @@ def render_entity(entity) -> np.ndarray:
     y, x, h, w = entity.bbox
     entity_type = entity.type.get_value()
     entity_size = entity.size.get_value()
-    entity_color = entity.color.get_value()
     
     img = np.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=np.uint8)
     
@@ -97,7 +96,7 @@ def render_entity(entity) -> np.ndarray:
     
     # Calculate size
     unit = min(h, w) * IMAGE_SIZE / 2
-    color = 255 - entity_color  # Invert color
+    color = 0  # Always use black for entities
     
     if entity_type == "triangle":
         size = min(h, w)
