@@ -9,7 +9,7 @@ how these structures appear when the camera rotates horizontally around them.
 The task uses:
 - Tilted camera views (20-40° elevation) for clear 3D perspective
 - Horizontal-only rotations with exactly 180° azimuth change for smooth transitions
-- 8-15 voxel structures for challenging but manageable complexity
+- 8-9 voxel structures for easier difficulty level
 
 The task evaluates a model's ability to:
 1. Understand 3D spatial relationships from tilted 2D projections
@@ -72,7 +72,7 @@ class RotationGenerator:
         
     def generate_tasks(self, num_tasks: int = 50) -> List[Dict[str, Any]]:
         """Generate 3D mental rotation tasks with tilted views and 180° horizontal rotations."""
-        print(f"🎯 Generating {num_tasks} 3D mental rotation tasks (8-15 voxels, 180° horizontal rotations)...")
+        print(f"🎯 Generating {num_tasks} 3D mental rotation tasks (8-9 voxels, 180° horizontal rotations)...")
         
         if not HAS_DEPENDENCIES:
             raise ImportError("NumPy, matplotlib, and PIL are required for rotation tasks")
@@ -87,9 +87,9 @@ class RotationGenerator:
         while len(voxel_list) < num_tasks and attempts < max_attempts:
             attempts += 1
             try:
-                # Use 8-15 voxels for challenging but viable shapes
+                # Use 8-9 voxels for easier difficulty structures
                 voxels = self._generate_snake(
-                    N=np.random.randint(8, 16), 
+                    N=np.random.randint(8, 10),  # Only 8 or 9 voxels
                     Lmin=1, 
                     Lmax=3,
                     p_branch=0.2,  # Some branching for variety
@@ -357,14 +357,9 @@ class RotationGenerator:
         """Assess task difficulty based on structure complexity and rotation angle."""
         num_voxels = len(voxels)
         
-        # Base complexity from number of voxels (8-15 range)
-        # Scale: 8-9 voxels = 2 points, 10-12 = 4 points, 13-15 = 6 points
-        if num_voxels <= 9:
-            complexity_score = 2
-        elif num_voxels <= 12:
-            complexity_score = 4
-        else:
-            complexity_score = 6
+        # Base complexity from number of voxels (8-9 range only)
+        # Since we're only using 8-9 voxels, all start with low complexity
+        complexity_score = 2  # All tasks start as easier difficulty
         
         # Add complexity for structures spanning multiple axes
         axes_used = len(set(v[0] for v in voxels)) + len(set(v[1] for v in voxels)) + len(set(v[2] for v in voxels))
@@ -381,10 +376,11 @@ class RotationGenerator:
         elif angle_diff > 40:
             complexity_score += 1
         
-        # Adjusted thresholds for 8-15 voxel range
+        # Adjusted thresholds for 8-9 voxel range (all tasks are in easier category)
+        # Most tasks will be "easy" due to limited voxel count
         if complexity_score <= 4:
             return "easy"
-        elif complexity_score <= 7:
+        elif complexity_score <= 6:
             return "medium"  
         else:
             return "hard"
@@ -592,9 +588,9 @@ def create_task_pair(task_data: Dict[str, Any], task_id: str) -> Dict[str, Any]:
 
 
 def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
-    """Create mental rotation dataset with tilted views and 180° horizontal rotations."""
+    """Create mental rotation dataset with tilted views and 180° horizontal rotations (8-9 voxels only for easier difficulty)."""
     
-    print(f"🎯 Creating 3D mental rotation dataset with {num_samples} samples (180° horizontal rotations)...")
+    print(f"🎯 Creating 3D mental rotation dataset with {num_samples} samples (8-9 voxels, 180° horizontal rotations)...")
     
     # Generate tasks
     generator = RotationGenerator()
@@ -611,7 +607,7 @@ def create_dataset(num_samples: int = 50) -> Dict[str, Any]:
     # Create dataset
     dataset = {
         "name": "rotation_tasks",
-        "description": f"3D mental rotation tasks with tilted views (20-40° elevation) and 180° horizontal rotations for video model evaluation ({len(pairs)} pairs)",
+        "description": f"3D mental rotation tasks with 8-9 voxels, tilted views (20-40° elevation) and 180° horizontal rotations for video model evaluation ({len(pairs)} pairs)",
         "pairs": pairs
     }
     
