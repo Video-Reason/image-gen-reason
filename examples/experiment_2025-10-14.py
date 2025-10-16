@@ -28,13 +28,15 @@ import sys
 import json
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import traceback
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import time
+import signal
+import atexit
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -69,6 +71,197 @@ OUTPUT_DIR = Path("data/outputs/pilot_experiment")
 
 # Expected domains (for validation)
 EXPECTED_DOMAINS = ["chess", "maze", "raven", "rotation", "sudoku"]
+
+
+# ========================================
+# PROGRESS TRACKING AND RESUME MECHANISM
+# ========================================
+
+class ProgressTracker:
+    """
+    Manages experiment progress for resume capability.
+    
+    Tracks:
+    - Completed jobs
+    - Failed jobs
+    - In-progress jobs (cleaned on resume)
+    - Statistics
+    """
+    
+    def __init__(self, output_dir: Path, experiment_id: str = None):
+        """
+        Initialize progress tracker.
+        
+        Args:
+            output_dir: Base output directory
+            experiment_id: Unique experiment identifier (auto-generated if None)
+        """
+        self.output_dir = output_dir
+        self.logs_dir = output_dir / "logs"
+        self.logs_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Generate or use experiment ID
+        if experiment_id is None:
+            experiment_id = f"experiment_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.experiment_id = experiment_id
+        
+        # Progress file paths
+        self.checkpoint_file = self.logs_dir / f"checkpoint_{experiment_id}.json"
+        self.progress_file = self.logs_dir / f"progress_{experiment_id}.json"
+        
+        # Initialize or load progress
+        self.progress = self._load_progress()
+        
+        # Lock for thread-safe operations
+        self.lock = threading.Lock()
+        
+        # Register cleanup handlers
+        atexit.register(self.save_progress)
+        signal.signal(signal.SIGINT, self._handle_interrupt)
+        signal.signal(signal.SIGTERM, self._handle_interrupt)
+        
+        # Track if we're resuming
+        self.is_resume = bool(self.progress.get("jobs_completed", []))
+        
+        if self.is_resume:
+            print(f"📊 Resuming experiment: {experiment_id}")
+            print(f"   Completed: {len(self.progress.get('jobs_completed', []))}")
+            print(f"   Failed: {len(self.progress.get('jobs_failed', []))}")
+            print(f"   Clearing {len(self.progress.get('jobs_in_progress', []))} interrupted jobs")
+            # Clear in-progress jobs (they need to be retried)
+            self.progress["jobs_in_progress"] = []
+    
+    def _load_progress(self) -> Dict[str, Any]:
+        """Load existing progress or initialize new."""
+        if self.checkpoint_file.exists():
+            try:
+                with open(self.checkpoint_file, 'r') as f:
+                    data = json.load(f)
+                print(f"✅ Loaded checkpoint from: {self.checkpoint_file}")
+                return data
+            except Exception as e:
+                print(f"⚠️  Failed to load checkpoint: {e}")
+                # Backup corrupted checkpoint
+                backup_file = self.checkpoint_file.with_suffix('.backup.json')
+                if self.checkpoint_file.exists():
+                    self.checkpoint_file.rename(backup_file)
+                    print(f"   Backed up to: {backup_file}")
+        
+        # Initialize new progress
+        return {
+            "experiment_id": self.experiment_id,
+            "start_time": datetime.now().isoformat(),
+            "last_update": datetime.now().isoformat(),
+            "jobs_completed": [],
+            "jobs_failed": [],
+            "jobs_in_progress": [],
+            "statistics": {}
+        }
+    
+    def save_progress(self, force: bool = False):
+        """Save current progress to checkpoint file."""
+        with self.lock:
+            try:
+                self.progress["last_update"] = datetime.now().isoformat()
+                
+                # Atomic write (write to temp, then rename)
+                temp_file = self.checkpoint_file.with_suffix('.tmp')
+                with open(temp_file, 'w') as f:
+                    json.dump(self.progress, f, indent=2)
+                temp_file.replace(self.checkpoint_file)
+                
+                # Also save detailed progress log
+                with open(self.progress_file, 'w') as f:
+                    json.dump(self.progress, f, indent=2)
+                    
+                if force:
+                    print(f"💾 Progress saved to: {self.checkpoint_file}")
+                    
+            except Exception as e:
+                print(f"⚠️  Failed to save progress: {e}")
+    
+    def _handle_interrupt(self, signum, frame):
+        """Handle interruption signals gracefully."""
+        print("\n\n⚠️  Interrupt detected! Saving progress...")
+        self.save_progress(force=True)
+        print("✅ Progress saved. You can resume this experiment later.")
+        sys.exit(0)
+    
+    def job_started(self, job_id: str) -> bool:
+        """
+        Mark a job as started.
+        
+        Args:
+            job_id: Unique job identifier
+            
+        Returns:
+            True if job should proceed, False if already completed
+        """
+        with self.lock:
+            # Check if already completed
+            if job_id in self.progress["jobs_completed"]:
+                return False
+            
+            # Mark as in progress
+            if job_id not in self.progress["jobs_in_progress"]:
+                self.progress["jobs_in_progress"].append(job_id)
+            
+            return True
+    
+    def job_completed(self, job_id: str, result: Dict[str, Any]):
+        """Mark a job as completed."""
+        with self.lock:
+            # Remove from in-progress
+            if job_id in self.progress["jobs_in_progress"]:
+                self.progress["jobs_in_progress"].remove(job_id)
+            
+            # Add to completed (avoid duplicates)
+            if job_id not in self.progress["jobs_completed"]:
+                self.progress["jobs_completed"].append(job_id)
+            
+            # Save periodically (every 5 completions)
+            if len(self.progress["jobs_completed"]) % 5 == 0:
+                self.save_progress()
+    
+    def job_failed(self, job_id: str, error: str):
+        """Mark a job as failed."""
+        with self.lock:
+            # Remove from in-progress
+            if job_id in self.progress["jobs_in_progress"]:
+                self.progress["jobs_in_progress"].remove(job_id)
+            
+            # Add to failed with error info
+            failed_info = {
+                "job_id": job_id,
+                "error": error,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Update or add to failed list
+            existing_failed = [j for j in self.progress["jobs_failed"] 
+                              if isinstance(j, dict) and j.get("job_id") == job_id]
+            if not existing_failed:
+                self.progress["jobs_failed"].append(failed_info)
+    
+    def should_skip_job(self, job_id: str) -> bool:
+        """Check if a job should be skipped (already completed)."""
+        with self.lock:
+            return job_id in self.progress["jobs_completed"]
+    
+    def get_resume_stats(self) -> Dict[str, int]:
+        """Get statistics for resume."""
+        with self.lock:
+            return {
+                "completed": len(self.progress["jobs_completed"]),
+                "failed": len(self.progress["jobs_failed"]),
+                "in_progress": len(self.progress["jobs_in_progress"])
+            }
+    
+    def update_statistics(self, stats: Dict[str, Any]):
+        """Update experiment statistics."""
+        with self.lock:
+            self.progress["statistics"] = stats
+            self.save_progress()
 
 
 # ========================================
@@ -311,10 +504,14 @@ def run_pilot_experiment(
     models: Dict[str, str],
     output_dir: Path,
     skip_existing: bool = True,
-    max_workers: int = 6  # Parallel workers (one per model)
+    max_workers: int = 6,  # Parallel workers (one per model)
+    experiment_id: str = None,  # For resume capability
+    enable_resume: bool = True  # Enable resume mechanism
 ) -> Dict[str, Any]:
     """
     Run full pilot experiment with PARALLEL execution on ALL human-approved tasks.
+    
+    Supports resume capability with checkpoint saves.
     
     Args:
         tasks_by_domain: Dictionary mapping domain to task lists
@@ -322,6 +519,8 @@ def run_pilot_experiment(
         output_dir: Base output directory
         skip_existing: Skip tasks that already have outputs
         max_workers: Maximum parallel workers for ThreadPoolExecutor
+        experiment_id: Unique experiment identifier for resume (auto-generated if None)
+        enable_resume: Enable checkpoint-based resume mechanism
         
     Returns:
         Dictionary with all results and statistics
@@ -333,6 +532,7 @@ def run_pilot_experiment(
     print(f"   Models: {len(models)}")
     print(f"   Domains: {len(tasks_by_domain)}")
     print(f"   🔄 Parallel Workers: {max_workers}")
+    print(f"   📥 Resume Enabled: {enable_resume}")
     
     # Calculate totals
     total_tasks = sum(len(tasks) for tasks in tasks_by_domain.values())
@@ -349,6 +549,17 @@ def run_pilot_experiment(
     # Create output structure
     create_output_structure(output_dir)
     
+    # Initialize progress tracker if resume is enabled
+    progress_tracker = None
+    if enable_resume:
+        progress_tracker = ProgressTracker(output_dir, experiment_id)
+        if progress_tracker.is_resume:
+            resume_stats = progress_tracker.get_resume_stats()
+            print(f"\n📥 RESUMING PREVIOUS EXPERIMENT")
+            print(f"   Already completed: {resume_stats['completed']}/{total_generations}")
+            print(f"   Failed (will retry): {resume_stats['failed']}")
+            print(f"   Interrupted (will retry): {resume_stats['in_progress']}\n")
+    
     # Thread-safe results storage
     all_results = []
     results_lock = threading.Lock()
@@ -359,6 +570,7 @@ def run_pilot_experiment(
         "completed": 0,
         "failed": 0,
         "skipped": 0,
+        "resumed": 0,
         "by_model": {},
         "by_domain": {}
     }
@@ -369,6 +581,13 @@ def run_pilot_experiment(
         statistics["by_model"][model] = {"completed": 0, "failed": 0, "skipped": 0}
     for domain in tasks_by_domain.keys():
         statistics["by_domain"][domain] = {"completed": 0, "failed": 0, "skipped": 0}
+    
+    # Load existing stats if resuming
+    if progress_tracker and progress_tracker.is_resume:
+        existing_stats = progress_tracker.progress.get("statistics", {})
+        if existing_stats:
+            statistics.update(existing_stats)
+            statistics["resumed"] = len(progress_tracker.progress.get("jobs_completed", []))
     
     experiment_start = datetime.now()
     
@@ -395,12 +614,37 @@ def run_pilot_experiment(
         task = job["task"]
         domain = job["domain"]
         task_id = task["id"]
+        job_id = f"{model_name}_{task_id}"
+        
+        # Check progress tracker first if enabled
+        if progress_tracker:
+            if progress_tracker.should_skip_job(job_id):
+                with stats_lock:
+                    statistics["skipped"] += 1
+                    statistics["by_model"][model_name]["skipped"] += 1
+                    statistics["by_domain"][domain]["skipped"] += 1
+                return {
+                    "task_id": task_id,
+                    "model_name": model_name,
+                    "status": "resumed",
+                    "message": "Already completed in previous run"
+                }
+            
+            # Mark job as started
+            if not progress_tracker.job_started(job_id):
+                # Already completed (race condition check)
+                return {
+                    "task_id": task_id,
+                    "model_name": model_name,
+                    "status": "resumed",
+                    "message": "Already completed"
+                }
         
         # With new structure, check if inference folder already exists
         run_id = f"{model_name}_{task_id}_*"
         existing_dirs = list(output_dir.glob(run_id))
         
-        if skip_existing and existing_dirs:
+        if skip_existing and existing_dirs and not progress_tracker:
             with stats_lock:
                 statistics["skipped"] += 1
                 statistics["by_model"][model_name]["skipped"] += 1
@@ -421,6 +665,13 @@ def run_pilot_experiment(
             runner=runner  # Pass the shared runner instance
         )
         
+        # Update progress tracker
+        if progress_tracker:
+            if result["success"]:
+                progress_tracker.job_completed(job_id, result)
+            else:
+                progress_tracker.job_failed(job_id, result.get("error", "Unknown error"))
+        
         # Update statistics and results (thread-safe)
         with results_lock:
             all_results.append(result)
@@ -434,6 +685,10 @@ def run_pilot_experiment(
                 statistics["failed"] += 1
                 statistics["by_model"][model_name]["failed"] += 1
                 statistics["by_domain"][domain]["failed"] += 1
+            
+            # Update progress tracker statistics
+            if progress_tracker:
+                progress_tracker.update_statistics(statistics)
             
             # Save intermediate results periodically
             if (statistics["completed"] + statistics["failed"]) % 5 == 0:
@@ -472,12 +727,22 @@ def run_pilot_experiment(
     statistics["duration_seconds"] = duration
     statistics["duration_formatted"] = format_duration(duration)
     
+    # Final save to progress tracker
+    if progress_tracker:
+        progress_tracker.update_statistics(statistics)
+        progress_tracker.save_progress(force=True)
+        print(f"\n💾 Final checkpoint saved")
+    
     print(f"\n⚡ Parallel execution completed in {format_duration(duration)}")
     print(f"   Sequential estimate would be: ~{format_duration(duration * max_workers)}")
     
+    if statistics.get("resumed", 0) > 0:
+        print(f"   📥 Resumed {statistics['resumed']} previously completed jobs")
+    
     return {
         "results": all_results,
-        "statistics": statistics
+        "statistics": statistics,
+        "experiment_id": experiment_id or (progress_tracker.experiment_id if progress_tracker else None)
     }
 
 
@@ -572,7 +837,70 @@ def format_duration(seconds: float) -> str:
 # ========================================
 
 def main():
-    """Main execution function."""
+    """Main execution function with resume support."""
+    import argparse
+    
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="VMEvalKit Quick Test Experiment with Resume Support")
+    parser.add_argument("--resume", type=str, help="Resume a previous experiment by ID or 'latest'")
+    parser.add_argument("--no-resume", action="store_true", help="Disable resume mechanism entirely")
+    parser.add_argument("--experiment-id", type=str, help="Custom experiment ID for this run")
+    parser.add_argument("--workers", type=int, default=6, help="Number of parallel workers (default: 6)")
+    parser.add_argument("--all-tasks", action="store_true", help="Run all tasks, not just 1 per domain")
+    parser.add_argument("--list-checkpoints", action="store_true", help="List available checkpoints and exit")
+    args = parser.parse_args()
+    
+    # List checkpoints if requested
+    if args.list_checkpoints:
+        logs_dir = OUTPUT_DIR / "logs"
+        if logs_dir.exists():
+            checkpoints = sorted(logs_dir.glob("checkpoint_*.json"))
+            if checkpoints:
+                print("📋 Available checkpoints:")
+                for cp in checkpoints:
+                    try:
+                        with open(cp, 'r') as f:
+                            data = json.load(f)
+                        exp_id = data.get("experiment_id", "unknown")
+                        completed = len(data.get("jobs_completed", []))
+                        failed = len(data.get("jobs_failed", []))
+                        last_update = data.get("last_update", "unknown")
+                        print(f"   • {exp_id}:")
+                        print(f"     Completed: {completed}, Failed: {failed}")
+                        print(f"     Last update: {last_update}")
+                        print(f"     File: {cp.name}\n")
+                    except Exception as e:
+                        print(f"   ⚠️  Could not read {cp.name}: {e}")
+            else:
+                print("No checkpoints found.")
+        else:
+            print("No logs directory found.")
+        sys.exit(0)
+    
+    # Determine experiment ID
+    experiment_id = args.experiment_id
+    if args.resume:
+        if args.resume == "latest":
+            # Find the latest checkpoint
+            logs_dir = OUTPUT_DIR / "logs"
+            if logs_dir.exists():
+                checkpoints = sorted(logs_dir.glob("checkpoint_*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+                if checkpoints:
+                    latest_cp = checkpoints[0]
+                    # Extract experiment ID from filename
+                    exp_id_from_file = latest_cp.stem.replace("checkpoint_", "")
+                    experiment_id = exp_id_from_file
+                    print(f"📥 Resuming latest experiment: {experiment_id}")
+                else:
+                    print("⚠️  No checkpoints found to resume from.")
+                    sys.exit(1)
+            else:
+                print("⚠️  No logs directory found.")
+                sys.exit(1)
+        else:
+            experiment_id = args.resume
+            print(f"📥 Resuming experiment: {experiment_id}")
+    
     print("🔍 Discovering human-approved tasks from folder structure...")
     
     # Check if questions directory exists
@@ -584,14 +912,19 @@ def main():
     # Discover all approved tasks from folders
     all_tasks_by_domain = discover_all_tasks_from_folders(QUESTIONS_DIR)
     
-    # Limit to 1 task per domain for quick testing
+    # Choose task set based on args
     tasks_by_domain = {}
-    for domain, tasks in all_tasks_by_domain.items():
-        if tasks:
-            tasks_by_domain[domain] = [tasks[0]]  # Take only first task
-            print(f"   🎯 Testing with 1 task from {domain}: {tasks[0]['id']}")
-        else:
-            tasks_by_domain[domain] = []
+    if args.all_tasks:
+        tasks_by_domain = all_tasks_by_domain
+        print(f"   🎯 Running ALL approved tasks")
+    else:
+        # Limit to 1 task per domain for quick testing
+        for domain, tasks in all_tasks_by_domain.items():
+            if tasks:
+                tasks_by_domain[domain] = [tasks[0]]  # Take only first task
+                print(f"   🎯 Testing with 1 task from {domain}: {tasks[0]['id']}")
+            else:
+                tasks_by_domain[domain] = []
     
     # Verify models are available
     print(f"\n🔍 Verifying {len(PILOT_MODELS)} models for parallel testing...")
@@ -604,7 +937,8 @@ def main():
             # Don't exit, just warn - some models might not be configured yet
     
     print(f"\n{'=' * 80}")
-    input("Press ENTER to start the quick test experiment (or Ctrl+C to cancel)...")
+    if not args.resume:
+        input("Press ENTER to start the quick test experiment (or Ctrl+C to cancel)...")
     
     # Verify we found tasks
     if not tasks_by_domain or sum(len(tasks) for tasks in tasks_by_domain.values()) == 0:
@@ -616,7 +950,10 @@ def main():
         tasks_by_domain=tasks_by_domain,
         models=PILOT_MODELS,
         output_dir=OUTPUT_DIR,
-        skip_existing=True
+        skip_existing=True,
+        max_workers=args.workers,
+        experiment_id=experiment_id,
+        enable_resume=not args.no_resume
     )
     
     # Save final results
@@ -655,6 +992,15 @@ def main():
         print(f"   {domain.title()}: {domain_stats['completed']}/{domain_total} completed")
     
     print(f"\n📁 All outputs saved to: {OUTPUT_DIR}")
+    
+    # Show experiment ID for resume
+    exp_id = experiment_results.get("experiment_id")
+    if exp_id:
+        print(f"\n📥 To resume this experiment later, run:")
+        print(f"   python {sys.argv[0]} --resume {exp_id}")
+        print(f"   or:")
+        print(f"   python {sys.argv[0]} --resume latest")
+    
     print(f"{'=' * 80}\n")
 
 
