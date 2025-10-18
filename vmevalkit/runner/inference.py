@@ -1044,9 +1044,8 @@ class InferenceRunner:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
         
-        # Simple logging to track runs
-        self.log_file = self.output_dir / "inference_log.json"
-        self.runs = self._load_log()
+        # Logging disabled: keep in-memory only
+        self.runs = []
     
     def run(
         self,
@@ -1078,8 +1077,17 @@ class InferenceRunner:
             question_id = question_data.get('id', 'unknown') if question_data else 'unknown'
             run_id = f"{model_name}_{question_id}_{start_time.strftime('%Y%m%d_%H%M%S')}"
         
-        # Create structured output directory
-        inference_dir = self.output_dir / run_id
+        # Create structured output directory mirroring questions structure:
+        # <model_base>/<domain>_task/<task_id>/<run_id>/
+        domain = None
+        task_id = "unknown"
+        if question_data:
+            domain = question_data.get("domain") or question_data.get("task_category")
+            task_id = question_data.get("id", task_id)
+        domain_dir_name = f"{domain}_task" if domain else "unknown_task"
+
+        task_base_dir = self.output_dir / domain_dir_name / task_id
+        inference_dir = task_base_dir / run_id
         inference_dir.mkdir(parents=True, exist_ok=True)
         
         try:
@@ -1088,7 +1096,8 @@ class InferenceRunner:
                 model_name=model_name,
                 image_path=image_path,
                 text_prompt=text_prompt,
-                output_dir=self.output_dir,
+                # Ensure inner runner also writes into the mirrored task directory
+                output_dir=str(task_base_dir),
                 question_data=question_data,
                 inference_id=run_id,
                 **kwargs  # Clean! No filtering needed
@@ -1104,8 +1113,7 @@ class InferenceRunner:
             # Save metadata
             self._save_metadata(inference_dir, result, question_data)
             
-            # Log the run
-            self._log_run(run_id, result)
+            # Logging disabled
             
             print(f"\n✅ Inference complete! Output saved to: {inference_dir}")
             print(f"   - Video: {inference_dir}/video/")
@@ -1127,7 +1135,7 @@ class InferenceRunner:
             
             # Save error metadata
             self._save_metadata(inference_dir, error_result, question_data)
-            self._log_run(run_id, error_result)
+            # Logging disabled
             
             # Clean up folder if no video was generated
             self._cleanup_failed_folder(inference_dir)
@@ -1347,26 +1355,9 @@ class InferenceRunner:
         }
     
     def _load_log(self) -> list:
-        """Load existing run log."""
-        if self.log_file.exists():
-            with open(self.log_file, 'r') as f:
-                return json.load(f)
+        """Load existing run log (disabled)."""
         return []
     
     def _log_run(self, run_id: str, result: Dict[str, Any]):
-        """Log a run to the log file."""
-        # Create a clean copy for logging (avoid circular references)
-        log_entry = {
-            "run_id": run_id,
-            "model": result.get("model"),
-            "status": result.get("status"),
-            "timestamp": result.get("timestamp"),
-            "inference_dir": result.get("inference_dir"),
-            "video_path": result.get("video_path"),
-            "error": result.get("error")
-        }
-        
-        self.runs.append(log_entry)
-        
-        with open(self.log_file, 'w') as f:
-            json.dump(self.runs, f, indent=2)
+        """Log a run (disabled)."""
+        return
