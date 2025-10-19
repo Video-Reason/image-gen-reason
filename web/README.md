@@ -80,12 +80,7 @@ GET /api/results?domain=chess
 GET /api/results?task_id=maze_0001
 ```
 
-### Get Statistics
-```
-GET /api/statistics
-```
-
-Returns JSON with model and domain statistics.
+Returns JSON with filtered results based on query parameters.
 
 ## Directory Structure
 
@@ -100,10 +95,6 @@ web/
 ├── templates/                  # HTML templates
 │   ├── base.html              # Base template
 │   ├── index.html             # Dashboard overview
-│   ├── model.html             # Model-specific view
-│   ├── domain.html            # Domain-specific view
-│   ├── task.html              # Task comparison view
-│   ├── compare.html           # Comparison matrix
 │   └── error.html             # Error page
 └── static/                     # Static assets
     ├── css/
@@ -115,31 +106,13 @@ web/
 ## Features in Detail
 
 ### Overview Dashboard (`/`)
-- Total inference count and success rate
-- Model performance table with success rates
-- Domain statistics with task counts
-- Recent results grid with video previews
-
-### Model View (`/model/<model_name>`)
-- All results for a specific model
-- Performance breakdown by domain
-- Video grid with all generated videos
-
-### Domain View (`/domain/<domain_name>`)
-- All results for a specific reasoning domain
-- Performance breakdown by model
-- Domain-specific statistics
-
-### Task View (`/task/<task_id>`)
-- Compare all model results for a single task
-- Side-by-side video comparison
-- Input/output image display
-- Metadata and prompt information
-
-### Comparison Matrix (`/compare`)
-- Grid view of all tasks × all models
-- Video playback controls
-- Quick visual comparison
+- Total inference count across all models
+- Hierarchical view: Models → Domains → Tasks
+- Collapsible sections with state indicators
+- Quick navigation buttons for each model
+- Video playback directly in the dashboard
+- Input images and prompts display
+- Auto-expand first model for immediate visibility
 
 ## Deployment Options
 
