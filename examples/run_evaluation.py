@@ -58,7 +58,6 @@ def example_gpt4o_evaluation():
     # Create evaluator
     evaluator = GPT4OEvaluator(
         experiment_name="pilot_experiment",
-        max_frames=8,
         temperature=0.1
     )
     

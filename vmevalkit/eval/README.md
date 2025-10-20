@@ -25,8 +25,8 @@ python examples/run_evaluation.py human
 Automatic evaluation using OpenAI's GPT-4O vision model.
 
 **Features:**
-- Automatic frame extraction from videos
-- Multi-frame analysis
+- Compares final frame of generated video with ground truth
+- Direct assessment of whether the model answered the question correctly
 - Task-specific evaluation prompts
 - Batch processing of all models
 - Detailed scoring and explanations
@@ -37,7 +37,7 @@ Automatic evaluation using OpenAI's GPT-4O vision model.
 python examples/run_evaluation.py gpt4o
 ```
 
-**Resume Capability:** Automatically skips already evaluated tasks - safe to re-run.
+**Resume Capability:** Human evaluation skips already evaluated tasks. Automated GPT-4O evaluation overwrites existing results by default.
 
 Note: Set `OPENAI_API_KEY` environment variable before running.
 
@@ -66,7 +66,7 @@ data/evaluations/
 │   │   ├── chess_task/
 │   │   │   ├── chess_0000/
 │   │   │   │   ├── human-eval.json
-│   │   │   │   └── gpt-4o-eval.json
+│   │   │   │   └── GPT4OEvaluator.json
 │   │   │   └── ...
 │   │   └── ...
 │   └── ...
@@ -114,12 +114,12 @@ Gradio-based interface for human annotation.
 - `launch_interface(share, port)`: Start web interface
 
 ### GPT4OEvaluator
-Automatic evaluation using GPT-4O.
+Automatic evaluation using GPT-4O by comparing final frames.
 
 **Methods:**
-- `extract_frames(video_path, num_frames)`: Extract video frames
+- `extract_final_frame(video_path)`: Extract the final frame from video
 - `create_evaluation_prompt(task_type)`: Generate task-specific prompts
-- `evaluate_single()`: Evaluate one video
+- `evaluate_single()`: Evaluate one video by comparing final frames
 
 ## Tips
 
@@ -132,7 +132,8 @@ Automatic evaluation using GPT-4O.
 2. **For GPT-4O Evaluation:**
    - Monitor API costs for large experiments
    - Results are deterministic with low temperature (0.1)
-   - Check frame extraction quality for debugging
+   - Only tasks with ground truth final frames will be evaluated
+   - Focuses on final result rather than process
 
 3. **General:**
    - Run evaluations after all inference is complete
