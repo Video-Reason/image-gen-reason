@@ -281,6 +281,66 @@ python examples/experiment_2025-10-14.py --all-tasks --only-model veo-3.0-genera
 - To retry failed tasks: manually delete their output directories
 - No separate checkpoint files - uses directory presence for tracking
 
+## Evaluation
+
+VMEvalKit provides two evaluation methods to assess video generation models' reasoning capabilities:
+
+### Human Evaluation
+
+Interactive web interface for manual assessment:
+
+```bash
+# Launch human evaluation interface
+python -m vmevalkit.runner.evaluate human --annotator "Your Name"
+
+# With public share link
+python -m vmevalkit.runner.evaluate human --annotator "Your Name" --share
+```
+
+**Features:**
+- Gradio-based web interface
+- Side-by-side comparison of input and output
+- Structured evaluation criteria
+- Progress tracking
+
+### GPT-4O Evaluation
+
+Automatic evaluation using OpenAI's vision model:
+
+```bash
+# Set API key
+export OPENAI_API_KEY=your_api_key
+
+# Evaluate all models
+python -m vmevalkit.runner.evaluate gpt4o
+
+# Evaluate specific models
+python -m vmevalkit.runner.evaluate gpt4o --models luma-ray-2 openai-sora-2
+```
+
+**Features:**
+- Multi-frame video analysis
+- Task-specific evaluation prompts
+- Batch processing
+- Detailed scoring and explanations
+
+### Evaluation Output
+
+Results are saved in `data/evaluations/` with the following structure:
+```
+data/evaluations/
+├── pilot_experiment/
+│   ├── luma-ray-2/
+│   │   ├── chess_task/
+│   │   │   ├── chess_0000/
+│   │   │   │   ├── human-eval.json
+│   │   │   │   └── gpt-4o-eval.json
+│   │   └── <evaluator>_summary.json
+│   └── <evaluator>_all_models.json
+```
+
+See [vmevalkit/eval/README.md](vmevalkit/eval/README.md) for detailed documentation.
+
 ## License
 
 Apache 2.0
