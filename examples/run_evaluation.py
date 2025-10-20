@@ -9,8 +9,6 @@ This script provides easy access to VMEvalKit's evaluation methods:
 
 Usage:
     python run_evaluation.py human
-    python run_evaluation.py human --no-skip-existing
-    python run_evaluation.py human --check-eval-types human-eval
     python run_evaluation.py gpt4o
     python run_evaluation.py custom
 """
