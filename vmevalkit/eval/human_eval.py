@@ -7,7 +7,6 @@ from typing import Dict, Any, List, Optional, Tuple
 import logging
 import gradio as gr
 from datetime import datetime
-import pandas as pd
 
 from .base import BaseEvaluator
 
@@ -372,50 +371,3 @@ class HumanEvaluator(BaseEvaluator):
         # Launch the interface
         interface.launch(share=share, server_port=port)
     
-    def get_evaluation_summary(self) -> pd.DataFrame:
-        """Get a summary of all evaluations as a pandas DataFrame.
-        
-        Returns:
-            DataFrame with evaluation results
-        """
-        results = []
-        
-        # Iterate through evaluation directory
-        eval_base = self.output_dir / self.experiment_name
-        
-        for model_dir in eval_base.iterdir():
-            if not model_dir.is_dir():
-                continue
-                
-            model_name = model_dir.name
-            
-            for task_type_dir in model_dir.iterdir():
-                if not task_type_dir.is_dir():
-                    continue
-                    
-                task_type = task_type_dir.name
-                
-                for task_dir in task_type_dir.iterdir():
-                    if not task_dir.is_dir():
-                        continue
-                        
-                    task_id = task_dir.name
-                    eval_path = task_dir / "human-eval.json"
-                    
-                    if eval_path.exists():
-                        with open(eval_path, 'r') as f:
-                            data = json.load(f)
-                            
-                        result = data["result"]
-                        row = {
-                            "model": model_name,
-                            "task_type": task_type,
-                            "task_id": task_id,
-                            "annotator": data["metadata"]["annotator"],
-                            "timestamp": data["metadata"]["timestamp"],
-                            "solution_correctness_score": result.get("solution_correctness_score", result.get("solution_correctness", 0)),
-                            "comments": result.get("comments", "")
-                        }
-                        results.append(row)
-        
-        return pd.DataFrame(results)

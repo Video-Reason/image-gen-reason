@@ -117,7 +117,6 @@ Gradio-based interface for human annotation.
 
 **Methods:**
 - `launch_interface(share, port)`: Start web interface
-- `get_evaluation_summary()`: Get pandas DataFrame of results
 
 ### GPT4OEvaluator
 Automatic evaluation using GPT-4O.

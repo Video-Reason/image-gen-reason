@@ -77,8 +77,7 @@ class BaseEvaluator(ABC):
         
         results = {
             "model_name": model_name,
-            "evaluations": {},
-            "summary": {}
+            "evaluations": {}
         }
         
         # Iterate through all task types
