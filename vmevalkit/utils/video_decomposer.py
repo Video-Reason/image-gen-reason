@@ -1,22 +1,57 @@
 #!/usr/bin/env python3
 """
-Video Decomposition Utility
+Video Decomposition Utility for Research Paper Figures
 
-A utility function to decompose videos into a series of temporal frames
-for creating paper figures. Extracts key frames at regular intervals
-and optionally arranges them in various layouts.
+This module provides utilities to decompose videos into temporal frame sequences,
+specifically designed for creating publication-quality figures in research papers.
+It extracts key frames at regular intervals and arranges them in various layouts
+suitable for academic publications.
 
-Usage:
-    from vmevalkit.utils.video_decomposer import decompose_video
+Key Features:
+    - Extract N frames from videos at regular temporal intervals
+    - Multiple layout options: horizontal timeline, vertical progression, grid arrangement
+    - Publication-quality output in PNG and EPS (vector) formats
+    - Model comparison figures for AI research
+    - Customizable timestamps, frame numbers, and styling
+    - Support for common video formats (MP4, WebM, AVI, MOV)
+
+Typical Use Cases:
+    1. Temporal Analysis: Show how AI-generated content evolves over time
+    2. Model Comparison: Side-by-side comparison of different AI models
+    3. Task Progression: Demonstrate progression through complex tasks
+    4. Quality Analysis: Analyze video quality at different time points
+
+Usage Examples:
     
-    # Extract 4 frames and create a horizontal timeline figure
-    frames, figure_path = decompose_video(
-        video_path="path/to/video.mp4",
-        n_frames=4,
-        output_dir="figures/",
-        create_figure=True,
-        layout="horizontal"
-    )
+    Basic single video decomposition:
+    >>> from vmevalkit.utils import decompose_video
+    >>> frames, figure_path = decompose_video(
+    ...     video_path="path/to/video.mp4",
+    ...     n_frames=4,
+    ...     layout="horizontal",
+    ...     title="Temporal Progression Analysis"
+    ... )
+    
+    Model comparison figure:
+    >>> from vmevalkit.utils import create_video_comparison_figure
+    >>> figure_path = create_video_comparison_figure(
+    ...     video_paths=["model1.mp4", "model2.mp4", "model3.mp4"],
+    ...     model_names=["Sora", "Veo", "Luma"],
+    ...     n_frames=4,
+    ...     title="AI Model Comparison"
+    ... )
+
+Dependencies:
+    - OpenCV (cv2): Video processing
+    - NumPy: Array operations
+    - Matplotlib: Figure generation and styling
+    - Pathlib: File system operations
+
+Notes:
+    - All output figures are saved in both PNG (raster) and EPS (vector) formats
+    - DPI defaults to 300 for publication quality
+    - Frame extraction uses evenly spaced temporal sampling
+    - Professional typography and styling applied automatically
 """
 
 import cv2
@@ -46,59 +81,106 @@ def decompose_video(
     """
     Decompose a video into a series of temporal frames for paper figures.
     
+    This function extracts frames from a video at evenly spaced temporal intervals
+    and optionally creates publication-quality figures. The frames are sampled
+    across the entire video duration to show temporal progression.
+    
     Args:
-        video_path: Path to the input video file
-        n_frames: Number of frames to extract (default: 4)
-        output_dir: Directory to save outputs (default: same as video)
-        create_figure: Whether to create a combined figure (default: True)
-        layout: How to arrange frames - "horizontal", "vertical", or "grid"
-        figure_size: Size of the combined figure in inches (width, height)
-        save_individual_frames: Whether to save individual frame images
-        frame_format: Format for saved frames ("png", "jpg", "eps")
-        dpi: DPI for saved figures (default: 300 for publication quality)
-        add_timestamps: Whether to add timestamp labels to frames
-        add_frame_numbers: Whether to add frame number labels
-        title: Optional title for the combined figure
+        video_path (Union[str, Path]): Path to the input video file. Supports
+            common formats: MP4, WebM, AVI, MOV.
+        n_frames (int, optional): Number of frames to extract. Default is 4.
+            If n_frames >= total video frames, all frames are extracted.
+        output_dir (Union[str, Path], optional): Directory to save outputs.
+            If None, uses the same directory as the input video.
+        create_figure (bool, optional): Whether to create a combined figure
+            showing all frames. Default is True.
+        layout (str, optional): How to arrange frames in the figure:
+            - "horizontal": Side-by-side timeline (good for temporal progression)
+            - "vertical": Stacked vertically (good for detailed comparison)  
+            - "grid": Arranged in a roughly square grid (good for many frames)
+            Default is "horizontal".
+        figure_size (Tuple[int, int], optional): Size of the combined figure
+            in inches as (width, height). Default is (16, 4).
+        save_individual_frames (bool, optional): Whether to save each frame
+            as a separate image file. Default is False.
+        frame_format (str, optional): Format for individual frame files.
+            Options: "png", "jpg", "eps". Default is "png".
+        dpi (int, optional): DPI (dots per inch) for saved figures.
+            Default is 300 for publication quality. Use 150+ for papers.
+        add_timestamps (bool, optional): Whether to add timestamp labels
+            (e.g., "t=2.5s") to frames. Default is True.
+        add_frame_numbers (bool, optional): Whether to add frame number labels
+            (e.g., "Frame 1") to frames. Default is True.
+        title (str, optional): Custom title for the combined figure.
+            If None and layout is "horizontal", auto-generates a title.
     
     Returns:
-        Tuple of (list of frame arrays, path to combined figure if created)
+        Tuple[List[np.ndarray], Optional[str]]: A tuple containing:
+            - List of frame arrays (RGB format, shape: [H, W, 3])
+            - Path to the combined figure (if create_figure=True), else None
+    
+    Raises:
+        FileNotFoundError: If the video file doesn't exist
+        ValueError: If the video file cannot be opened or no frames can be extracted
+        
+    Examples:
+        Extract 4 frames in a horizontal timeline:
+        >>> frames, fig_path = decompose_video("video.mp4", n_frames=4)
+        
+        Create a vertical arrangement with custom title:
+        >>> frames, fig_path = decompose_video(
+        ...     "video.mp4", 
+        ...     layout="vertical",
+        ...     title="Chess Game Progression"
+        ... )
+        
+        Extract many frames in a grid without figure creation:
+        >>> frames, _ = decompose_video(
+        ...     "video.mp4", 
+        ...     n_frames=16, 
+        ...     create_figure=False
+        ... )
     """
     
+    # Validate input and set up paths
     video_path = Path(video_path)
     if not video_path.exists():
         raise FileNotFoundError(f"Video file not found: {video_path}")
     
-    # Set up output directory
+    # Set up output directory - use video's directory if not specified
     if output_dir is None:
         output_dir = video_path.parent
     else:
         output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Open video
+    # Initialize video capture object
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise ValueError(f"Could not open video file: {video_path}")
     
     try:
-        # Get video properties
+        # Extract video metadata for temporal calculations
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = cap.get(cv2.CAP_PROP_FPS)
         duration = total_frames / fps if fps > 0 else 0
         
         logger.info(f"Video: {total_frames} frames, {fps:.2f} FPS, {duration:.2f}s duration")
         
-        # Calculate frame indices to extract (evenly spaced)
+        # Calculate which frames to extract - evenly distributed across video duration
         if n_frames >= total_frames:
+            # If requested frames >= total frames, extract all frames
             frame_indices = list(range(total_frames))
         else:
+            # Use linear interpolation to get evenly spaced frame indices
             frame_indices = np.linspace(0, total_frames - 1, n_frames, dtype=int)
         
-        # Extract frames
+        # Process each selected frame
         frames = []
         timestamps = []
         
         for i, frame_idx in enumerate(frame_indices):
+            # Seek to the specific frame position
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ret, frame = cap.read()
             
@@ -106,21 +188,21 @@ def decompose_video(
                 logger.warning(f"Could not read frame at index {frame_idx}")
                 continue
             
-            # Convert BGR to RGB for matplotlib
+            # Convert from OpenCV's BGR color format to RGB for matplotlib compatibility
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frames.append(frame_rgb)
             
-            # Calculate timestamp
+            # Calculate the timestamp for this frame
             timestamp = frame_idx / fps if fps > 0 else 0
             timestamps.append(timestamp)
             
-            # Save individual frame if requested
+            # Optionally save individual frame files
             if save_individual_frames:
                 frame_filename = f"{video_path.stem}_frame_{i:03d}.{frame_format}"
                 frame_path = output_dir / frame_filename
                 
                 if frame_format.lower() == 'eps':
-                    # For EPS, we need to use matplotlib
+                    # EPS (vector format) requires matplotlib for proper rendering
                     plt.figure(figsize=(8, 6))
                     plt.imshow(frame_rgb)
                     plt.axis('off')
@@ -128,11 +210,12 @@ def decompose_video(
                                pad_inches=0, facecolor='white')
                     plt.close()
                 else:
-                    # For PNG/JPG, use OpenCV (faster)
+                    # PNG/JPG can be saved directly with OpenCV (faster)
                     cv2.imwrite(str(frame_path), frame)
                 
                 logger.info(f"Saved frame {i+1}/{len(frame_indices)}: {frame_path}")
         
+        # Validate that we successfully extracted frames
         if not frames:
             raise ValueError("No frames could be extracted from the video")
         
@@ -174,41 +257,73 @@ def _create_combined_figure(
     title: Optional[str],
     duration: float
 ) -> str:
-    """Create a combined figure showing all frames in the specified layout."""
+    """
+    Create a publication-quality combined figure showing all frames in the specified layout.
+    
+    This internal function handles the matplotlib figure creation, styling, and export.
+    It applies professional typography, arranges frames according to the layout,
+    adds labels and annotations, and saves in both PNG and EPS formats.
+    
+    Args:
+        frames: List of frame arrays in RGB format
+        timestamps: List of timestamp values for each frame
+        video_name: Name of the video (used for filename generation)
+        output_dir: Directory to save the figure
+        layout: Layout arrangement ("horizontal", "vertical", "grid")
+        figure_size: Figure size in inches (width, height)
+        dpi: Resolution for output files
+        add_timestamps: Whether to add timestamp labels
+        add_frame_numbers: Whether to add frame number labels
+        title: Custom title for the figure
+        duration: Total video duration for display
+        
+    Returns:
+        str: Path to the created PNG figure
+        
+    Note:
+        This function saves both PNG and EPS versions of the figure
+        for maximum compatibility with different publication workflows.
+    """
     
     n_frames = len(frames)
     
-    # Set up matplotlib with professional styling
+    # Configure matplotlib with professional styling for publications
     plt.rcParams['font.family'] = 'sans-serif'
     plt.rcParams['font.sans-serif'] = ['Arial', 'Helvetica', 'DejaVu Sans']
     plt.rcParams['font.size'] = 10
     plt.rcParams['axes.labelsize'] = 12
     plt.rcParams['axes.titlesize'] = 14
     
-    # Determine subplot arrangement
+    # Calculate subplot arrangement based on layout preference
     if layout == "horizontal":
+        # Single row, multiple columns - good for temporal progression
         nrows, ncols = 1, n_frames
         figsize = figure_size
     elif layout == "vertical":
+        # Multiple rows, single column - good for detailed comparison
         nrows, ncols = n_frames, 1
-        figsize = (figure_size[1], figure_size[0])  # Swap width/height
+        figsize = (figure_size[1], figure_size[0])  # Swap width/height for vertical
     elif layout == "grid":
-        # Arrange in a roughly square grid
-        ncols = int(np.ceil(np.sqrt(n_frames)))
-        nrows = int(np.ceil(n_frames / ncols))
+        # Arrange in roughly square grid - good for many frames
+        ncols = int(np.ceil(np.sqrt(n_frames)))  # Number of columns
+        nrows = int(np.ceil(n_frames / ncols))   # Number of rows needed
+        # Adjust figure size to maintain aspect ratio
         figsize = (figure_size[0], figure_size[0] * nrows / ncols)
     else:
         raise ValueError(f"Unknown layout: {layout}")
     
-    # Create figure
+    # Create matplotlib figure and subplots
     fig, axes = plt.subplots(nrows, ncols, figsize=figsize, facecolor='white')
     
-    # Handle single subplot case
+    # Handle matplotlib's inconsistent return types for different subplot configurations
     if n_frames == 1:
+        # Single subplot returns bare Axes object, wrap in list
         axes = [axes]
     elif layout in ["horizontal", "vertical"]:
+        # Linear arrangements return 1D array, ensure it's iterable
         axes = axes if hasattr(axes, '__iter__') else [axes]
     else:  # grid layout
+        # 2D grid needs flattening to 1D for easy iteration
         axes = axes.flatten() if hasattr(axes, 'flatten') else [axes]
     
     # Set main title if provided
@@ -297,58 +412,97 @@ def create_video_comparison_figure(
     """
     Create a comparison figure showing temporal decomposition of multiple videos.
     
-    Useful for comparing different AI models' video generation results.
+    This function is particularly useful for AI research papers where you need to
+    compare the temporal evolution of videos generated by different models. It creates
+    a grid layout where each row represents a different model/video and each column
+    represents a temporal frame, allowing for easy visual comparison.
     
     Args:
-        video_paths: List of paths to video files
-        n_frames: Number of frames to extract from each video
-        output_dir: Directory to save the output figure
-        model_names: Optional list of model names for labeling (default: use filenames)
-        figure_size: Size of the figure in inches
-        dpi: DPI for the saved figure
-        title: Optional title for the figure
-        
+        video_paths (List[Union[str, Path]]): List of paths to video files to compare.
+            All videos should ideally be of similar duration for meaningful comparison.
+        n_frames (int, optional): Number of frames to extract from each video.
+            Default is 4. Frames are extracted at the same relative time points
+            across all videos for fair comparison.
+        output_dir (Union[str, Path], optional): Directory to save the output figure.
+            If None, uses the directory of the first video.
+        model_names (List[str], optional): List of model names for row labels.
+            Must have the same length as video_paths. If None, uses video filenames.
+        figure_size (Tuple[int, int], optional): Size of the figure in inches
+            as (width, height). Default is (16, 10) which works well for most papers.
+        dpi (int, optional): DPI for the saved figure. Default is 300 for
+            publication quality. Use 150+ for academic papers.
+        title (str, optional): Custom title for the entire comparison figure.
+            If None, uses a default comparison title.
+            
     Returns:
-        Path to the created comparison figure
+        str: Path to the created comparison figure (PNG format)
+        
+    Raises:
+        ValueError: If video_paths is empty or if model_names length doesn't match video_paths
+        FileNotFoundError: If any video file doesn't exist
+        
+    Examples:
+        Compare three AI models on the same task:
+        >>> figure_path = create_video_comparison_figure(
+        ...     video_paths=["sora_output.mp4", "veo_output.mp4", "luma_output.mp4"],
+        ...     model_names=["OpenAI Sora", "Google Veo 3.0", "Luma Dream Machine"],
+        ...     n_frames=4,
+        ...     title="Chess Game Generation - Model Comparison"
+        ... )
+        
+        Quick comparison using filenames as labels:
+        >>> figure_path = create_video_comparison_figure(
+        ...     ["model1.mp4", "model2.mp4"],
+        ...     n_frames=6
+        ... )
+    
+    Note:
+        The function saves both PNG and EPS versions of the figure. The figure
+        layout is optimized for academic publications with professional typography
+        and clear model/temporal labeling.
     """
     
+    # Input validation
     if not video_paths:
         raise ValueError("At least one video path must be provided")
     
     video_paths = [Path(p) for p in video_paths]
     n_videos = len(video_paths)
     
-    # Set output directory
+    # Set up output directory - use first video's directory if not specified
     if output_dir is None:
         output_dir = video_paths[0].parent
     else:
         output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Use filenames as model names if not provided
+    # Handle model naming - use filenames if not provided
     if model_names is None:
         model_names = [p.stem for p in video_paths]
     elif len(model_names) != n_videos:
         raise ValueError("Number of model names must match number of videos")
     
-    # Extract frames from all videos
+    # Process each video to extract frames and calculate timestamps
     all_frames = []
     all_timestamps = []
     
     for video_path in video_paths:
+        # Extract frames using the main decompose_video function
         frames, _ = decompose_video(
             video_path=video_path,
             n_frames=n_frames,
-            create_figure=False,
-            save_individual_frames=False
+            create_figure=False,        # Don't create individual figures
+            save_individual_frames=False  # Don't save individual frames
         )
         
-        # Calculate timestamps for this video
+        # Calculate exact timestamps for this specific video
+        # (needed because different videos may have different FPS/duration)
         cap = cv2.VideoCapture(str(video_path))
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         cap.release()
         
+        # Use same temporal sampling as decompose_video for consistency
         frame_indices = np.linspace(0, total_frames - 1, n_frames, dtype=int)
         timestamps = [idx / fps if fps > 0 else 0 for idx in frame_indices]
         
@@ -423,7 +577,9 @@ def create_video_comparison_figure(
     return str(output_path)
 
 
-# Example usage and CLI interface
+# Command Line Interface and Example Usage
+# This section provides a CLI for the video decomposer utility, allowing users to
+# process videos directly from the command line without writing Python code.
 if __name__ == "__main__":
     import argparse
     
