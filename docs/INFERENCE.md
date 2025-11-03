@@ -96,31 +96,51 @@ VMEvalKit provides unified access to **40 video generation models** across **11 
 
 ### System Design
 
-VMEvalKit employs a **three-layer architecture** with dynamic model loading:
+VMEvalKit uses a **three-layer modular architecture** that cleanly supports both commercial (closed-source) APIs and open-source video models—enabling seamless scaling, easy model addition, and clear separation of concerns.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   InferenceRunner                        │
-│  Orchestration layer - manages execution & output        │
-└─────────────────┬───────────────────────────────────────┘
-                  │ Dynamic Loading
-                  ▼
-┌─────────────────────────────────────────────────────────┐
-│                   MODEL_CATALOG                          │
-│  Registry - defines all models with module paths         │
-│  No imports, pure configuration                          │
-└─────────────────┬───────────────────────────────────────┘
-                  │ importlib.import_module()
-                  ▼
-┌─────────────────────────────────────────────────────────┐
-│                Model Implementations                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
-│  │ LumaWrapper  │  │ VeoWrapper   │  │ RunwayWrapper│ │
-│  │      +       │  │      +       │  │      +       │ │
-│  │ LumaService  │  │ VeoService   │  │RunwayService │ │
-│  └──────────────┘  └──────────────┘  └──────────────┘ │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                               InferenceRunner                              │
+│        Top-level orchestrator: manages workflow, batching, and output      │
+└───────────────────────┬─────────────────────────────────────────────────────┘
+                        │      Dynamic Model Loading (importlib)              
+                        ▼                                                    
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              MODEL_CATALOG                                 │
+│  Unified model registry:                                                   │
+│    - Lists all available models (both API and open-source)                 │
+│    - Records provider family, wrapper paths, model meta-info               │
+│    - No imports of implementations (pure config)                           │
+└───────────────────────┬─────────────────────────────────────────────────────┘
+                        │      importlib.import_module() dynamically loads   
+                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Model Implementations (Two Flavors)                   │
+│ ┌────────────────────────────┬────────────────────────────────────────────┐ │
+│ │          Commercial Models             │      Open-Source Models        │ │
+│ │       (Closed Source Services)         │    (Local Implementations)     │ │
+│ ├────────────────────────────┼────────────────────────────────────────────┤ │
+│ │ LumaWrapper  +  LumaService           │ LTXVideoWrapper  +  LTXService  │ │
+│ │ VeoWrapper   +  VeoService            │ HunyuanWrapper   +  HunyuanSvc  │ │
+│ │ RunwayWrapper+  RunwayService         │ VideoCrafterWrapper+VCService   │ │
+│ │ ...                                   │ DynamiCrafterWrapper+DynService │ │
+│ └────────────────────────────┴────────────────────────────────────────────┘ │
+│   - Each Wrapper implements unified VMEvalKit interface                     │
+│   - API Services handle endpoints, retries, S3-upload (when needed)         │
+│   - Open-source backends directly invoke local model code                   │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Key Points:**
+
+- **MODEL_CATALOG** lists both API-based (closed-source) and open-source models in one place. Each model specifies its provider, class paths, and type (`"api"` or `"open_source"`).
+- **Dynamic loading** means only the requested model's code is ever imported—no slow startup for unused models.
+- **Wrappers** for APIs and open-source models both inherit from `ModelWrapper` (or equivalent) and expose a common `.generate()` interface. API wrappers talk to services handling REST calls (with retry logic, S3 upload, etc), while open-source wrappers call local PyTorch/Tensorflow code.
+- This organization makes it trivial to:
+  - Add a new commercial model (just code wrapper/service, update catalog)
+  - Integrate new open-source models (add wrapper, point catalog)
+  - Avoid any circular dependencies or bloat at startup
+
 
 ### Component Breakdown
 
