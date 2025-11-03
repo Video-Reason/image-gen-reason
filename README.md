@@ -246,45 +246,31 @@ python data/s3_sync.py --date 20250115
 # python data/s3_sync.py --download --date 20250115
 ```
 
-Python API
+See **[Data Management](docs/DATA_MANAGEMENT.md)** for details. 
 
-```python
-from data.s3_sync import sync_to_s3
+## Display Results
 
-# Upload to S3 with automatic timestamp
-s3_uri = sync_to_s3()
-print(f"Data uploaded to: {s3_uri}")
-
-# Upload with custom date and specific directory
-s3_uri = sync_to_s3(
-    data_dir=Path("data/outputs"),
-    date_prefix="202501151030"
-)
-
-# Progress monitoring (uploads show status every 100 files)
-# ↳ 100 files...
-# ↳ 200 files...
-# ✅ Uploaded 1300 files (180.5 MB)
-```
-
-Version tracking 
+**You could quickly host your results on the dashboard at:** http://localhost:5000
 
 ```bash
-# View version history
-python data/data_logging/version_tracker.py summary
+# Navigate to web directory
+cd web
 
-# Get latest version
-python data/data_logging/version_tracker.py latest
+# Option 1: Use startup script (recommended)
+./start.sh
 
-# Example output:
-# 📊 Dataset Versions
-# ========================================
-# v1.0 (20250114) → s3://vmevalkit/202501141500/data
-#   180.5MB, 1300 files
-# v1.1 (20250115) → s3://vmevalkit/202501151030/data
-#   195.2MB, 1450 files
+# Option 2: Manual startup
+source ../venv/bin/activate
+python app.py
 ```
 
+## Research
+
+Here we keep track of papers spinned off from this code infrastructure and some works in progress.
+
+- [**"Video Models Start to Solve Chess, Maze, Sudoku, Mental Rotation, and Raven's Matrices"**](paper/video-models-start-to-solve/Video_Model_Start_to_Solve.pdf)
+
+This paper implements our experimental framework and demonstrates that leading video generation models (Sora-2 etc) can perform visual reasoning tasks with >60% success rates. See [**results**](https://grow-ai-like-a-child.com/video-reason/).
 
 ## Documentation
 
@@ -295,14 +281,6 @@ python data/data_logging/version_tracker.py latest
 - **[Adding Models](docs/ADDING_MODELS.md)** - How to add new video generation models
 - **[Adding Tasks](docs/ADDING_TASKS.md)** - How to create new reasoning tasks
 - **[Web Dashboard](docs/WEB_DASHBOARD.md)** - Interactive results visualization
-
-## Research
-
-Here we keep track of papers spinned off from this code infrastructure and some works in progress.
-
-- [**"Video Models Start to Solve Chess, Maze, Sudoku, Mental Rotation, and Raven's Matrices"**](paper/video-models-start-to-solve/Video_Model_Start_to_Solve.pdf)
-
-This paper implements our experimental framework and demonstrates that leading video generation models (Sora-2 etc) can perform visual reasoning tasks with >60% success rates. See [**results**](https://grow-ai-like-a-child.com/video-reason/).
 
 ## License
 
