@@ -37,7 +37,9 @@ Sudoku Solving
 
 ![Sudoku Example](paper/video-models-start-to-solve/assets/sudoku_example.jpg)
 
-## Installation
+## Installation & Setup
+
+Clone the repository and set up your Python environment:
 
 ```bash
 git clone https://github.com/hokindeng/VMEvalKit.git
@@ -48,20 +50,19 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-## Configuration
-
 Copy the environment template and configure your API keys:
+
 ```bash
 cp env.template .env
 ```
 
-## Submodules
+Initialize submodules (required for optional open-source models and datasets):
 
-Initialize after cloning:
 ```bash
 git submodule update --init --recursive
 ```
 
+Included submodules:
 - **maze-dataset**: Maze datasets for ML evaluation
 - **HunyuanVideo-I2V**: High-quality image-to-video generation (720p)
 - **LTX-Video**: Real-time video generation models
