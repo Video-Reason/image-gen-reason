@@ -98,7 +98,9 @@ There is also an accompanying `question_metadata.json` file. Each task pair is o
 
 [**"Video Models Start to Solve Chess, Maze, Sudoku, Mental Rotation, and Raven's Matrices"**](paper/video-models-start-to-solve/Video_Model_Start_to_Solve.pdf)
 
-This paper implements the experimental framework from our research paper, which demonstrates that leading video generation models (Sora-2, Veo-3, etc.) can perform visual reasoning tasks with >60% success rates. See [results](https://grow-ai-like-a-child.com/video-reason/).
+This paper implements the experimental framework from our research paper, which demonstrates that leading video generation models (Sora-2, Veo-3, etc.) can perform visual reasoning tasks with >60% success rates. 
+
+See [results](https://grow-ai-like-a-child.com/video-reason/).
 
 ## License
 
