@@ -67,6 +67,27 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+4. **Set up Python environment** – Recommended: use a fresh virtual environment
+
+```bash
+python -m venv venv
+source venv/bin/activate
+```
+
+*Alternatively, you can use modern tools like [`uv`](https://github.com/astral-sh/uv) for faster, reproducible environments (`uv venv`), or [`conda`](https://docs.conda.io/) if you're working in a scientific computing stack or need cross-language dependencies.*
+
+---
+
+5. **Install dependencies:**
+
+```bash
+pip install -r requirements.txt
+pip install -e .
+```
+
+Let me know if you'd like a full rewrite using `uv` or `conda` as the default setup.
+
+
 ## Tasks
 
 VMEvalKit evaluates models across 5 cognitive reasoning domains:
