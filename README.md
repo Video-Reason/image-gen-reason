@@ -48,18 +48,31 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-## Tasks
-
-VMEvalKit evaluates models across 5 cognitive reasoning domains:
-
-![Task Pair Structure](paper/video-models-start-to-solve/assets/question_set.jpg)
-
 ## Configuration
 
 Copy the environment template and configure your API keys:
 ```bash
 cp env.template .env
 ```
+
+## Submodules
+
+Initialize after cloning:
+```bash
+git submodule update --init --recursive
+```
+
+- **maze-dataset**: Maze datasets for ML evaluation
+- **HunyuanVideo-I2V**: High-quality image-to-video generation (720p)
+- **LTX-Video**: Real-time video generation models
+- **VideoCrafter**: Text-guided video generation
+- **DynamiCrafter**: Image animation with video diffusion
+
+## Tasks
+
+VMEvalKit evaluates models across 5 cognitive reasoning domains:
+
+![Task Pair Structure](paper/video-models-start-to-solve/assets/question_set.jpg)
 
 ## Documentation
 
@@ -104,19 +117,6 @@ VMEvalKit supports **40 models** across **11 families**:
 ## Examples
 
 See `examples/experiment_2025-10-14.py` for sequential inference across multiple models.
-
-## Submodules
-
-Initialize after cloning:
-```bash
-git submodule update --init --recursive
-```
-
-- **maze-dataset**: Maze datasets for ML evaluation
-- **HunyuanVideo-I2V**: High-quality image-to-video generation (720p)
-- **LTX-Video**: Real-time video generation models
-- **VideoCrafter**: Text-guided video generation
-- **DynamiCrafter**: Image animation with video diffusion
 
 ## Running Experiments
 
