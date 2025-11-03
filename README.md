@@ -267,7 +267,7 @@ See **[Web Dashboard](docs/WEB_DASHBOARD.md)** for details.
 
 ## Add Models or Tasks
 
-VMEvalKit is designed to be easily extensible. You can add new video generation models and cognitive tasks with minimal effort:
+You can add new video generation models and reasoning tasks with minimal effort:
 
 **Adding New Models**
 
@@ -292,7 +292,7 @@ Then register it in `MODEL_CATALOG.py`:
 }
 ```
 
-See **[Adding Models Guide](docs/ADDING_MODELS.md)** for complete documentation.
+See **[Adding Models Guide](docs/ADDING_MODELS.md)** for details.
 
 **Adding New Tasks**
 
@@ -318,11 +318,11 @@ class MyTask(BaseTask):
 
 VMEvalKit handles all the dataset organization, inference pipelines, and evaluation infrastructure automatically.
 
-See **[Adding Tasks Guide](docs/ADDING_TASKS.md)** for complete documentation.
+See **[Adding Tasks Guide](docs/ADDING_TASKS.md)** for details.
 
 ## Invitation to Collaborate 🤝
 
-VMEvalKit is meant to be a **shared playground** for testing and improving video reasoning. If you’re interested in cognitive tasks, video models, evaluation, or anything 🦄✨, we’d love to build with you:
+VMEvalKit is meant to be a **shared playground** for testing and improving video reasoning. If you’re interested in cognitive tasks, video models, evaluation, or anything anything 🦄✨, we’d love to build with you:
 
 * 🧪 Add new reasoning tasks (planning, causality, social, physical, etc.)
 * 🎥 Plug in new video models (APIs or open-source)
