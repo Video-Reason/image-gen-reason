@@ -322,7 +322,7 @@ See **[Adding Tasks Guide](docs/ADDING_TASKS.md)** for details.
 
 ## Invitation to Collaborate 🤝
 
-VMEvalKit is meant to be a **shared playground** for testing and improving video reasoning. If you’re interested in cognitive tasks, video models, evaluation, or anything anything 🦄✨, we’d love to build with you:
+VMEvalKit is meant to be a permissively open-source **shared playground** for testing and improving video reasoning. If you’re interested in machine cognition, video models, evaluation, or anything anything 🦄✨, we’d love to build with you:
 
 * 🧪 Add new reasoning tasks (planning, causality, social, physical, etc.)
 * 🎥 Plug in new video models (APIs or open-source)
