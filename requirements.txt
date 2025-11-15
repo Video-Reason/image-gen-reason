@@ -67,6 +67,8 @@ boto3>=1.34.0
 
 # HuggingFace (optional - for dataset sharing)
 huggingface_hub>=0.24.0
+datasets>=2.18.0  # For structured dataset upload
+pyarrow>=14.0.2  # Required by datasets
 
 # Web framework and dashboard
 Flask>=3.0.0
