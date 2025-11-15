@@ -65,6 +65,9 @@ sphinx-rtd-theme>=2.0.0
 # AWS
 boto3>=1.34.0
 
+# HuggingFace (optional - for dataset sharing)
+huggingface_hub>=0.24.0
+
 # Web framework and dashboard
 Flask>=3.0.0
 Werkzeug>=3.0.1
