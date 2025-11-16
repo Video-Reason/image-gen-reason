@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from vmevalkit.eval import HumanEvaluator, GPT4OEvaluator
+from vmevalkit.eval import HumanEvaluator, GPT4OEvaluator, InternVLEvaluator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,10 +55,10 @@ def example_gpt4o_scoring():
         total_all = 0
         completed_all = 0
         for model_name, results in all_results.items():
-            if "scorings" in results:
+            if "evaluations" in results:
                 total_tasks = 0
                 evaluated_tasks = 0
-                for task_type, tasks in results["scorings"].items():
+                for task_type, tasks in results["evaluations"].items():
                     for task_id, result in tasks.items():
                         total_tasks += 1
                         if "error" not in result and result.get("status") != "failed":
@@ -80,6 +80,66 @@ def example_gpt4o_scoring():
         print(f"📁 Partial results available in: data/scorings/gpt4o-score/pilot_experiment/")
 
 
+def example_internvl_scoring():
+    print("\n=== InternVL Scoring Example ===")
+    print("🤖 Evaluating ENTIRE pilot experiment with InternVL")
+    print("⚠️  Note: This will make API calls to local InternVL server")
+    print("✅ Resume-capable: Interrupted scorings can be continued")
+    
+    api_key = os.getenv("VISION_API_KEY", "YOUR_API_KEY")
+    base_url = os.getenv("VISION_API_BASE", "http://0.0.0.0:23333/v1")
+    
+    if api_key == "YOUR_API_KEY":
+        print("⚠️  Warning: Using default API key. Set VISION_API_KEY if needed.")
+    
+    scorer = InternVLEvaluator(
+        experiment_name="pilot_experiment",
+        api_key=api_key,
+        base_url=base_url,
+        temperature=0.0
+    )
+    
+    eval_dir = Path("data/evaluations/vision-eval/pilot_experiment")
+    if eval_dir.exists():
+        existing_files = list(eval_dir.rglob("*.json"))
+        if existing_files:
+            print(f"📊 Found {len(existing_files)} existing InternVL scorings - will resume from where left off")
+    
+    print(f"\n🚀 Starting InternVL scoring on pilot_experiment...")
+    print(f"🌐 Base URL: {base_url}")
+    print("💡 Tip: You can interrupt (Ctrl+C) and resume later - progress is saved after each task")
+    
+    try:
+        all_results = scorer.evaluate_all_models()
+        
+        print("\n📈 InternVL EVALUATION RESULTS:")
+        total_all = 0
+        completed_all = 0
+        for model_name, results in all_results.items():
+            if "evaluations" in results:
+                total_tasks = 0
+                evaluated_tasks = 0
+                for task_type, tasks in results["evaluations"].items():
+                    for task_id, result in tasks.items():
+                        total_tasks += 1
+                        if "error" not in result and result.get("status") != "failed":
+                            evaluated_tasks += 1
+                
+                total_all += total_tasks
+                completed_all += evaluated_tasks
+                
+                status = "✅ Complete" if evaluated_tasks == total_tasks else f"🔄 {evaluated_tasks}/{total_tasks}"
+                print(f"  • {model_name}: {status}")
+        
+        print(f"\n🎉 InternVL EVALUATION COMPLETE!")
+        print(f"📊 Total: {completed_all}/{total_all} tasks evaluated successfully")
+        print(f"💾 Results saved to: data/evaluations/vision-eval/pilot_experiment/")
+        
+    except KeyboardInterrupt:
+        print(f"\n⚠️  InternVL scoring interrupted!")
+        print(f"💾 Progress has been saved. Run the same command again to resume.")
+        print(f"📁 Partial results available in: data/evaluations/vision-eval/pilot_experiment/")
+
 
 def main():
     import argparse
@@ -98,6 +158,9 @@ def main():
         
         # Run GPT-4O scoring on ENTIRE pilot experiment
         python score_videos.py gpt4o
+        
+        # Run InternVL scoring on ENTIRE pilot experiment
+        python score_videos.py internvl
 
         Note: All methods evaluate the complete pilot experiment (all models, all tasks).
         """
@@ -105,7 +168,7 @@ def main():
     
     parser.add_argument(
         'method',
-        choices=['human', 'gpt4o', 'r-4b'],
+        choices=['human', 'gpt4o', 'internvl'],
         help='Scoring method to use'
     )
     
@@ -121,6 +184,8 @@ def main():
         example_human_scoring()
     elif args.method == "gpt4o":
         example_gpt4o_scoring()
+    elif args.method == "internvl":
+        example_internvl_scoring()
 
 
 if __name__ == "__main__":

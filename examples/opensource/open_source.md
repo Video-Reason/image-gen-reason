@@ -34,7 +34,22 @@ uv run examples/generate_videos.py --model wan-2.1-flf2v-720p --task chess maze
 ### Usage
 
 ```bash
-uv pip install sentencepiece #  otherwise has error. refer https://huggingface.co/Lightricks/LTX-Video/discussions/96
+uv pip install sentencepiece accelerate #  otherwise has error. refer https://huggingface.co/Lightricks/LTX-Video/discussions/96
 # Generate videos using LTX-Video model
 uv run examples/generate_videos.py --model ltx-video --task chess maze
 ```
+
+
+###  Opensource Evaluator
+
+
+refer https://huggingface.co/OpenGVLab/InternVL3-8B
+
+```bash
+uv pip install lmdeploy timm peft>=0.17.0
+lmdeploy serve api_server OpenGVLab/InternVL3-8B --chat-template internvl2_5 --server-port 23333 --tp 1 # takes 30GB vram.
+
+# in another terminal
+uv run examples/score_videos.py internvl
+```
+
