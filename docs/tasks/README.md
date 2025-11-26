@@ -1,5 +1,21 @@
 
 
+## 📊 Supported Datasets
+
+VMEvalKit provides access to **9 local task generation engines(quickly increasing)** and other external benchmark datasets (HuggingFace) [here](docs/tasks/README.md).
+
+### Local Task Generation Engines
+
+| Task | Description | Generation Method |
+|------|-------------|-------------------|
+| **Chess** | Strategic thinking & tactical patterns | Chess engine with mate-in-1 puzzles |
+| **Maze** | Path-finding & navigation | Procedural maze generation (Kruskal's algorithm) |
+| **Raven** | Abstract reasoning matrices | RAVEN dataset patterns |
+| **Rotation** | 3D mental rotation | Procedural 3D object generation |
+| **Sudoku** | Logical constraint satisfaction | Sudoku puzzle generator |
+| **Object Subtraction** | Selective object removal | Multi-level cognitive reasoning |
+| **Clock** | Time-based reasoning | Clock time increment |
+
 
 ## Examples
 

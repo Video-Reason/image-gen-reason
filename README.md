@@ -36,15 +36,9 @@ VMEvalKit provides access to **9 local task generation engines(quickly increasin
 
 ### Local Task Generation Engines
 
-| Task | Description | Generation Method |
-|------|-------------|-------------------|
-| **Chess** | Strategic thinking & tactical patterns | Chess engine with mate-in-1 puzzles |
-| **Maze** | Path-finding & navigation | Procedural maze generation (Kruskal's algorithm) |
-| **Raven** | Abstract reasoning matrices | RAVEN dataset patterns |
-| **Rotation** | 3D mental rotation | Procedural 3D object generation |
-| **Sudoku** | Logical constraint satisfaction | Sudoku puzzle generator |
-| **Object Subtraction** | Selective object removal | Multi-level cognitive reasoning |
-| **Clock** | Time-based reasoning | Clock time increment |
+Tasks supported by VMEvalKit:
+
+Chess, Maze, Raven, Rotation, Sudoku, Object Subtraction, Clock, mirror clock. For more details, see [**Task Docs**](docs/tasks/README.md).
 
 ### Basic Idea
 
@@ -167,40 +161,9 @@ For more details, see [**Task Docs**](docs/tasks/README.md).
 
 ## Inference Architecture
 
-### 🚀 Quick Start
-
-
 See **[Inference Guide](docs/INFERENCE.md)** for details. 
 
 ## Scoring Pipeline
-
-### Example Usage
-
-```bash
-# Create questions for specific domains
-python examples/create_questions.py --task chess maze --pairs-per-domain 10
-
-# Generate videos with selected models  
-python examples/generate_videos.py --model luma-ray-2 veo-3.0-generate --task chess maze
-
-# Score results with gpt4o
-python examples/score_videos.py gpt4o
-# Score results manually
-python -m vmevalkit.runner.score human \
-  --experiment pilot_experiment \
-  --annotator "John Doe" \
-  --port 7860 --share
-  --output-dir data/scorings \ 
-```
-
-You could also use Web interface directly:
-
-```python
-from vmevalkit.eval import HumanScorer
-
-scorer = HumanScorer(experiment_name="pilot_experiment")
-scorer.launch_interface(share=True, port=7860)
-```
 
 See **[Scoring Guide](docs/SCORING.md)** for details.
 
@@ -210,19 +173,6 @@ See **[Data Management](docs/DATA_MANAGEMENT.md)** for details.
 
 ## Display Results
 
-You could quickly host your results on an interactive dashboard at: http://localhost:5000
-
-```bash
-# Navigate to web directory
-cd web
-
-# Option 1: Use startup script (recommended)
-./start.sh
-
-# Option 2: Manual startup
-source ../venv/bin/activate
-python app.py
-```
 See **[Web Dashboard](docs/WEB_DASHBOARD.md)** for details.
 
 ## Add Models or Tasks
