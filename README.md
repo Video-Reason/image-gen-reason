@@ -21,6 +21,40 @@ We **make it very convenient** to [**add models**](docs/ADDING_MODELS.md), [**ad
     
 </p>
 
+## Installation & Setup
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/hokindeng/VMEvalKit.git
+cd VMEvalKit
+```
+
+2. **Initialize submodules** - good for optional open-source models and datasets
+```bash
+git submodule update --init --recursive
+```
+
+3. **Configure environment** - Copy the example environment file and add your API keys
+```bash
+cp env.template .env
+```
+
+4. **Set up Python environment** – Recommended: use a fresh virtual environment
+
+```bash
+python -m venv venv
+source venv/bin/activate
+```
+
+Alternatively, you can use other tools like [`uv`](https://github.com/astral-sh/uv) for faster install (`uv venv`), or [`conda`](https://docs.conda.io/) if your usecase has cross-language dependencies.
+
+5. **Install dependencies:**
+
+```bash
+pip install -r requirements.txt
+pip install -e .
+```
+
 ## License
 
 Apache 2.0
