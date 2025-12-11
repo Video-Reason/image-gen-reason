@@ -1,8 +1,7 @@
 
 
 models:
-  - model: svd
-  - model: wan
+  - model: Qwen-Image
 
 datasets:
   - task: maze

@@ -1,7 +1,7 @@
 """
-VMEvalKit Inference Runner - Multi-Provider Video Generation
+VMEvalKit Inference Runner - Multi-Provider Image Generation
 
-Unified interface for 37+ text+image→video models across 9 major providers.
+Unified interface for text+image→image models across multiple providers.
 Uses dynamic loading from MODEL_CATALOG for clean separation of concerns.
 """
 
@@ -59,7 +59,7 @@ def run_inference(
     Args:
         model_name: Name of model to use (from MODEL_CATALOG)
         image_path: Path to input image
-        text_prompt: Text instructions for video generation
+        text_prompt: Text instructions for image generation
         output_dir: Directory to save outputs
         question_data: Optional question metadata including final_image_path
         **kwargs: Additional model-specific parameters
@@ -75,13 +75,13 @@ def run_inference(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     inference_id = kwargs.pop('inference_id', f"{model_name}_{timestamp}")
     inference_dir = Path(output_dir) / inference_id
-    video_dir = inference_dir / "video"
-    video_dir.mkdir(parents=True, exist_ok=True)
+    image_dir = inference_dir / "image"
+    image_dir.mkdir(parents=True, exist_ok=True)
     
     # Create model instance with clean initialization
     init_kwargs = {
         "model": model_config["model"],
-        "output_dir": str(video_dir),
+        "output_dir": str(image_dir),
     }
     
     # Add any model-specific args from catalog
@@ -109,7 +109,7 @@ class InferenceRunner:
     Enhanced inference runner with dynamic model loading.
     
     Each inference creates a self-contained folder with:
-    - video/: Generated video file(s)
+    - image/: Generated image file(s)
     - question/: Input images and prompt
     - metadata.json: Complete inference metadata
     """
@@ -179,7 +179,7 @@ class InferenceRunner:
             
             init_kwargs = {
                 "model": model_config["model"],
-                "output_dir": str(task_base_dir / "video"),
+                "output_dir": str(task_base_dir / "image"),
             }
             
             if "args" in model_config:
@@ -191,9 +191,9 @@ class InferenceRunner:
         wrapper = self._wrapper_cache[model_name]
         
         # Update output dir for this specific task
-        video_dir = inference_dir / "video"
-        video_dir.mkdir(parents=True, exist_ok=True)
-        wrapper.output_dir = video_dir
+        image_dir = inference_dir / "image"
+        image_dir.mkdir(parents=True, exist_ok=True)
+        wrapper.output_dir = image_dir
         
         # Run inference using cached wrapper
         if question_data:
@@ -211,7 +211,7 @@ class InferenceRunner:
         self._save_metadata(inference_dir, result, question_data)
         
         print(f"\n✅ Inference complete! Output saved to: {inference_dir}")
-        print(f"   - Video: {inference_dir}/video/")
+        print(f"   - Image: {inference_dir}/image/")
         print(f"   - Question data: {inference_dir}/question/")
         print(f"   - Metadata: {inference_dir}/metadata.json")
         
@@ -264,13 +264,13 @@ class InferenceRunner:
                 "task_category": question_data.get("task_category") if question_data else None
             },
             "output": {
-                "video_path": result.get("video_path"),
-                "video_url": result.get("metadata", {}).get("video_url"),
+                "image_path": result.get("image_path"),
+                "image_url": result.get("metadata", {}).get("image_url"),
                 "generation_id": result.get("generation_id")
             },
             "paths": {
                 "inference_dir": str(inference_dir),
-                "video_dir": str(inference_dir / "video"),
+                "image_dir": str(inference_dir / "image"),
                 "question_dir": str(inference_dir / "question")
             },
             "question_data": question_data
@@ -300,16 +300,16 @@ class InferenceRunner:
         return clean
     
     def _cleanup_failed_folder(self, inference_dir: Path):
-        """Clean up folder if video generation failed."""
-        video_dir = inference_dir / "video"
+        """Clean up folder if image generation failed."""
+        image_dir = inference_dir / "image"
         
-        # Check if video directory exists and has content
-        if video_dir.exists():
-            video_files = list(video_dir.glob("*.mp4")) + list(video_dir.glob("*.webm"))
-            if video_files:
-                return  # Keep folder if it has video files
+        # Check if image directory exists and has content
+        if image_dir.exists():
+            image_files = list(image_dir.glob("*.png")) + list(image_dir.glob("*.jpg")) + list(image_dir.glob("*.jpeg")) + list(image_dir.glob("*.webp"))
+            if image_files:
+                return  # Keep folder if it has image files
         
-        # Remove the entire inference directory if no videos were generated
+        # Remove the entire inference directory if no images were generated
         if inference_dir.exists():
             shutil.rmtree(inference_dir)
             print(f"   Cleaned up empty folder: {inference_dir.name}")
