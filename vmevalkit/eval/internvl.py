@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 
-import cv2
 import numpy as np
 from PIL import Image
 import io
@@ -71,26 +70,13 @@ class InternVLEvaluator:
         eval_file = eval_path / f"{self.evaluator_name}.json"
         return eval_file.exists()
     
-    def extract_final_frame(self, video_path: str) -> np.ndarray:
-        """Extract final frame from video."""
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise ValueError(f"Cannot open video: {video_path}")
+    def load_image(self, image_path: str) -> np.ndarray:
+        """Load image from file."""
+        if not Path(image_path).exists():
+            raise ValueError(f"Cannot open image: {image_path}")
         
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total_frames == 0:
-            raise ValueError(f"Video has no frames: {video_path}")
-        
-        # Try last frame, then second-to-last if needed
-        for offset in [1, 2]:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, total_frames - offset)
-            ret, frame = cap.read()
-            if ret:
-                cap.release()
-                return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        cap.release()
-        raise ValueError(f"Cannot read final frame from video: {video_path}")
+        image = Image.open(image_path)
+        return np.array(image)
     
     def encode_image(self, image: Union[np.ndarray, str]) -> str:
         """Encode image to base64."""
@@ -120,8 +106,8 @@ class InternVLEvaluator:
     
     def create_prompt(self, task_type: str) -> str:
         """Create evaluation prompt."""
-        return f"""You are evaluating video generation models.
-                Compare the final frame of the generated video with the expected ground truth final frame.
+        return f"""You are evaluating image generation models.
+                Compare the generated image with the expected ground truth final image.
 
                 Rate solution correctness on a 1-5 scale:
                 1: Completely wrong - no understanding of task
@@ -137,8 +123,8 @@ class InternVLEvaluator:
     
     def create_goal_based_prompt(self, task_type: str) -> str:
         """Create goal-based evaluation prompt (without solution image)."""
-        return f"""You are evaluating video generation models.
-                Given the task prompt and goal, determine if the goal has been achieved in the final frame of the generated video.
+        return f"""You are evaluating image generation models.
+                Given the task prompt and goal, determine if the goal has been achieved in the generated image.
 
                 Rate goal achievement on a 1-5 scale:
                 1: Goal not achieved - completely failed to meet the goal
@@ -153,11 +139,11 @@ class InternVLEvaluator:
                 """
     
     async def evaluate_single_async(self, model_name: str, task_type: str, task_id: str,
-                                   video_path: str) -> Dict[str, Any]:
-        """Evaluate a single video. Automatically falls back to goal-based evaluation if no final_frame_path."""
-        final_frame_video = self.extract_final_frame(video_path)
+                                   image_path: str) -> Dict[str, Any]:
+        """Evaluate a single image. Automatically falls back to goal-based evaluation if no final_frame_path."""
+        generated_image = self.load_image(image_path)
         
-        task_dir = Path(video_path).parent.parent
+        task_dir = Path(image_path).parent.parent
         first_frame_path = task_dir / "question" / "first_frame.png"
         final_frame_path = task_dir / "question" / "final_frame.png"
         prompt_path = task_dir / "question" / "prompt.txt"
@@ -176,7 +162,7 @@ class InternVLEvaluator:
             if goal:
                 logger.info(f"Using goal from question_metadata.json: {goal}")
                 return await self.evaluate_single_goal_based_async(
-                    model_name, task_type, task_id, video_path, goal
+                    model_name, task_type, task_id, image_path, goal
                 )
             else:
                 logger.warning(f"No goal found in question_metadata.json for {model_name}/{task_type}/{task_id}")
@@ -189,10 +175,10 @@ class InternVLEvaluator:
             {"role": "user", "content": [
                 {"type": "text", "text": f"Task: {task_type}\nPrompt: {prompt_text}\n\n1. Input image:"},
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(str(first_frame_path))}"}},
-                {"type": "text", "text": "\n2. Expected final frame:"},
+                {"type": "text", "text": "\n2. Expected final image:"},
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(str(final_frame_path))}"}},
-                {"type": "text", "text": "\n3. Actual final frame from video:"},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(final_frame_video)}"}},
+                {"type": "text", "text": "\n3. Generated image:"},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(generated_image)}"}},
                 {"type": "text", "text": "\nProvide your evaluation."}
             ]}
         ]
@@ -213,19 +199,19 @@ class InternVLEvaluator:
         raise ValueError("Could not parse JSON from vision model response")
     
     async def evaluate_single_goal_based_async(self, model_name: str, task_type: str, task_id: str,
-                                               video_path: str, goal: Optional[str] = None) -> Dict[str, Any]:
-        """Evaluate a single video based on goal achievement (without solution image).
+                                               image_path: str, goal: Optional[str] = None) -> Dict[str, Any]:
+        """Evaluate a single image based on goal achievement (without solution image).
         
         Args:
             model_name: Name of the model
             task_type: Type of task
             task_id: ID of the task
-            video_path: Path to the video
+            image_path: Path to the generated image
             goal: Goal text. If None, will try to read from question_metadata.json or goal.txt
         """
-        final_frame_video = self.extract_final_frame(video_path)
+        generated_image = self.load_image(image_path)
         
-        task_dir = Path(video_path).parent.parent
+        task_dir = Path(image_path).parent.parent
         first_frame_path = task_dir / "question" / "first_frame.png"
         prompt_path = task_dir / "question" / "prompt.txt"
         question_metadata_path = task_dir / "question" / "question_metadata.json"
@@ -263,9 +249,9 @@ class InternVLEvaluator:
             {"role": "user", "content": [
                 {"type": "text", "text": f"Task: {task_type}\nPrompt: {prompt_text}\nGoal: {goal_text}\n\n1. Input image:"},
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(str(first_frame_path))}"}},
-                {"type": "text", "text": "\n2. Final frame from video:"},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(final_frame_video)}"}},
-                {"type": "text", "text": "\nBased on the goal, determine if it has been achieved in the final frame. Provide your evaluation."}
+                {"type": "text", "text": "\n2. Generated image:"},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.encode_image(generated_image)}"}},
+                {"type": "text", "text": "\nBased on the goal, determine if it has been achieved in the generated image. Provide your evaluation."}
             ]}
         ]
         
@@ -286,14 +272,14 @@ class InternVLEvaluator:
         raise ValueError("Could not parse JSON from vision model response")
     
     def evaluate_single(self, model_name: str, task_type: str, task_id: str,
-                       video_path: str) -> Dict[str, Any]:
-        """Evaluate a single video (sync wrapper)."""
-        return asyncio.run(self.evaluate_single_async(model_name, task_type, task_id, video_path))
+                       image_path: str) -> Dict[str, Any]:
+        """Evaluate a single image (sync wrapper)."""
+        return asyncio.run(self.evaluate_single_async(model_name, task_type, task_id, image_path))
     
     def evaluate_single_goal_based(self, model_name: str, task_type: str, task_id: str,
-                                   video_path: str, goal: Optional[str] = None) -> Dict[str, Any]:
-        """Evaluate a single video based on goal (sync wrapper)."""
-        return asyncio.run(self.evaluate_single_goal_based_async(model_name, task_type, task_id, video_path, goal))
+                                   image_path: str, goal: Optional[str] = None) -> Dict[str, Any]:
+        """Evaluate a single image based on goal (sync wrapper)."""
+        return asyncio.run(self.evaluate_single_goal_based_async(model_name, task_type, task_id, image_path, goal))
     
     async def evaluate_model_async(self, model_name: str, use_goal_based: bool = False) -> Dict[str, Any]:
         """Evaluate all results for a model (async version).
@@ -335,17 +321,20 @@ class InternVLEvaluator:
                     continue
                 
                 output_dir = output_dirs[0]
-                video_files = list((output_dir / "video").glob("*.mp4"))
-                if not video_files:
-                    logger.warning(f"No video in {output_dir / 'video'}")
+                image_files = list((output_dir / "image").glob("*.png")) + \
+                             list((output_dir / "image").glob("*.jpg")) + \
+                             list((output_dir / "image").glob("*.jpeg")) + \
+                             list((output_dir / "image").glob("*.webp"))
+                if not image_files:
+                    logger.warning(f"No image in {output_dir / 'image'}")
                     continue
                 
                 try:
                     logger.info(f"Evaluating {model_name}/{task_type}/{task_id} (mode: {'goal-based' if use_goal_based else 'comparison'})")
                     if use_goal_based:
-                        eval_result = await self.evaluate_single_goal_based_async(model_name, task_type, task_id, str(video_files[0]))
+                        eval_result = await self.evaluate_single_goal_based_async(model_name, task_type, task_id, str(image_files[0]))
                     else:
-                        eval_result = await self.evaluate_single_async(model_name, task_type, task_id, str(video_files[0]))
+                        eval_result = await self.evaluate_single_async(model_name, task_type, task_id, str(image_files[0]))
                     results["evaluations"][task_type][task_id] = eval_result
                     
                     # Save immediately after each evaluation (RESUME SUPPORT)

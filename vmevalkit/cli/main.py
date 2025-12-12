@@ -2,10 +2,12 @@ import argparse
 import sys
 import yaml
 import json
+import os
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from vmevalkit.runner.retriever import Retriever
 from vmevalkit.runner.inference import InferenceRunner
+from vmevalkit.eval import InternVLEvaluator, GPT4OEvaluator
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -186,6 +188,145 @@ def main():
     print(f"   Total successful inferences: {total_inferences}")
     print(f"   Output directory: {output_dir}")
     print(f"{'='*60}")
+    
+    # Step 6: Run scoring if configured
+    scorer_config = config_dict.get('scorer', [])
+    if scorer_config and total_inferences > 0:
+        print(f"\n{'='*60}")
+        print(f"📊 Starting scoring phase...")
+        print(f"{'='*60}")
+        
+        experiment_name = config_dict.get('experiment_name', output_dir.name)
+        
+        for scorer_item in scorer_config:
+            scorer_name = scorer_item.get('scorer')
+            if not scorer_name:
+                continue
+            
+            print(f"\n🔍 Running scorer: {scorer_name}")
+            
+            if scorer_name == 'internvl':
+                run_internvl_scoring(
+                    experiment_name=experiment_name,
+                    output_dir=output_dir,
+                    scorer_config=scorer_item
+                )
+            elif scorer_name == 'gpt4o':
+                run_gpt4o_scoring(
+                    experiment_name=experiment_name,
+                    output_dir=output_dir,
+                    scorer_config=scorer_item
+                )
+            else:
+                print(f"⚠️  Unknown scorer: {scorer_name}, skipping...")
+        
+        print(f"\n{'='*60}")
+        print(f"✅ Scoring complete!")
+        print(f"{'='*60}")
+
+def run_internvl_scoring(
+    experiment_name: str,
+    output_dir: Path,
+    scorer_config: Dict[str, Any]
+):
+    """Run InternVL scoring on generated images."""
+    print(f"🤖 Starting InternVL scoring for experiment: {experiment_name}")
+    
+    api_key = os.getenv("VISION_API_KEY", "YOUR_API_KEY")
+    base_url = os.getenv("VISION_API_BASE", "http://0.0.0.0:23333/v1")
+    temperature = scorer_config.get('temperature', 0.0)
+    
+    if api_key == "YOUR_API_KEY":
+        print("⚠️  Warning: Using default API key. Set VISION_API_KEY if needed.")
+    
+    # Create evaluator
+    evaluator = InternVLEvaluator(
+        output_dir=str(output_dir.parent / "evaluations" / "vision-eval"),
+        experiment_name=experiment_name,
+        api_key=api_key,
+        base_url=base_url,
+        temperature=temperature
+    )
+    
+    # Update experiment_dir to point to our output directory
+    evaluator.experiment_dir = output_dir
+    
+    print(f"🌐 Base URL: {base_url}")
+    print(f"📁 Experiment directory: {output_dir}")
+    
+    # Evaluate all models
+    use_goal_based = scorer_config.get('use_goal_based', False)
+    print(f"📋 Evaluation mode: {'goal-based' if use_goal_based else 'comparison'}")
+    
+    all_results = evaluator.evaluate_all_models(use_goal_based=use_goal_based)
+    
+    # Print summary
+    print(f"\n📊 Scoring Summary:")
+    for model_name, model_results in all_results.items():
+        if "evaluations" in model_results:
+            total = 0
+            completed = 0
+            failed = 0
+            for task_type, tasks in model_results["evaluations"].items():
+                for task_id, result in tasks.items():
+                    total += 1
+                    if result.get("status") == "completed":
+                        completed += 1
+                    elif result.get("status") == "failed":
+                        failed += 1
+            
+            print(f"  {model_name}:")
+            print(f"    Total tasks: {total}")
+            print(f"    Completed: {completed}")
+            print(f"    Failed: {failed}")
+
+def run_gpt4o_scoring(
+    experiment_name: str,
+    output_dir: Path,
+    scorer_config: Dict[str, Any]
+):
+    """Run GPT-4O scoring on generated images."""
+    print(f"🤖 Starting GPT-4O scoring for experiment: {experiment_name}")
+    
+    if not os.getenv("OPENAI_API_KEY"):
+        print("❌ Error: OPENAI_API_KEY environment variable not set!")
+        return
+    
+    max_frames = scorer_config.get('max_frames', 8)
+    temperature = scorer_config.get('temperature', 0.1)
+    
+    # Create evaluator
+    evaluator = GPT4OEvaluator(
+        output_dir=str(output_dir.parent / "evaluations" / "gpt4o-eval"),
+        experiment_name=experiment_name,
+        max_frames=max_frames,
+        temperature=temperature
+    )
+    
+    # Update experiment_dir to point to our output directory
+    evaluator.experiment_dir = output_dir
+    
+    print(f"📁 Experiment directory: {output_dir}")
+    print(f"🎬 Max frames: {max_frames}")
+    
+    # Score all models
+    all_results = evaluator.score_all_models()
+    
+    # Print summary
+    print(f"\n📊 Scoring Summary:")
+    for model_name, model_results in all_results.items():
+        if "scorings" in model_results:
+            total = 0
+            scored = 0
+            for task_type, tasks in model_results["scorings"].items():
+                for task_id, result in tasks.items():
+                    total += 1
+                    if "error" not in result:
+                        scored += 1
+            
+            print(f"  {model_name}:")
+            print(f"    Total tasks: {total}")
+            print(f"    Scored: {scored}")
 
 if __name__ == '__main__':
     main()

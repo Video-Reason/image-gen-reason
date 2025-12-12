@@ -9,3 +9,5 @@ datasets:
   - task: chess
     pairs_per_domain: 5
 
+scorer:
+  - scorer: internvl
